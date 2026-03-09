@@ -34,7 +34,7 @@ const Login: React.FC = () => {
           transition={{ duration: 0.8 }}
           className="relative z-10 max-w-md"
         >
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold text-[hsl(40,10%,90%)] leading-tight">
+          <h1 className="text-4xl md:text-5xl font-display font-semibold text-[hsl(40,10%,90%)] leading-tight">
             Shaan Rais
           </h1>
           <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mt-4 mb-6" />
