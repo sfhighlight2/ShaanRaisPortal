@@ -58,7 +58,7 @@ export const mockClients: Client[] = [
 export const mockProjects: Project[] = [
   {
     id: "p1", clientId: "c1", packageTemplateId: "t1",
-    projectName: "Growth Consulting Package", description: "120-Day Launch to Scale program",
+    projectName: "120-Day Brand", description: "120-Day Launch to Scale program",
     status: "active", currentPhaseId: "ph2", isMainProject: true, createdAt: "2024-03-01",
   },
   {
