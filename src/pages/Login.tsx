@@ -60,7 +60,7 @@ const Login: React.FC = () => {
             <p className="text-sm text-muted-foreground mt-1">Client Portal</p>
           </div>
 
-          <h2 className="text-2xl font-serif font-semibold text-foreground">
+          <h2 className="text-2xl font-heading font-semibold text-foreground">
             Welcome back
           </h2>
           <p className="text-sm text-muted-foreground mt-2 mb-8">

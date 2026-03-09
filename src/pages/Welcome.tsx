@@ -35,7 +35,7 @@ const Welcome: React.FC = () => {
       >
         <div className="w-12 h-0.5 bg-primary mx-auto mb-8" />
 
-        <h1 className="text-3xl md:text-4xl font-serif font-semibold text-foreground leading-tight">
+        <h1 className="text-3xl md:text-4xl font-heading font-semibold text-foreground leading-tight">
           Welcome, {user?.firstName}
         </h1>
         <p className="text-muted-foreground mt-3 text-base leading-relaxed max-w-md mx-auto">

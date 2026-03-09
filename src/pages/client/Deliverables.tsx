@@ -32,7 +32,7 @@ const ClientDeliverables: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-foreground">Deliverables</h1>
+        <h1 className="text-2xl font-heading font-semibold text-foreground">Deliverables</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Access all project deliverables organized by phase.
         </p>

@@ -34,7 +34,7 @@ const AdminClients: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-semibold text-foreground">Clients</h1>
+          <h1 className="text-2xl font-heading font-semibold text-foreground">Clients</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage all client accounts.</p>
         </div>
         <Button className="gap-2">

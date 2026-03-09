@@ -56,7 +56,7 @@ export function AppSidebar() {
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <span className="text-xl font-serif font-bold text-sidebar-primary">S</span>
+              <span className="text-xl font-display font-bold text-sidebar-primary">S</span>
             </div>
           )}
         </div>

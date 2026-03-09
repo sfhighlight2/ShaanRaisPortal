@@ -11,7 +11,7 @@ const AdminSettings: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-heading font-semibold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Configure portal settings and preferences.</p>
       </div>
 
