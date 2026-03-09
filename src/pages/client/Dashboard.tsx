@@ -28,47 +28,48 @@ const phaseStatusStyles: Record<PhaseStatus, string> = {
 };
 
 const ClientDashboard: React.FC = () => {
-  // Mock: use first client
   const client = mockClients[0];
   const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
   const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
   const currentPhase = phases.find((ph) => ph.status === "current");
   const accountManager = getUserById(client.accountManagerId);
 
-  // Tasks for current phase (visible to client, not completed)
   const pendingTasks = mockTasks.filter(
     (t) => t.phaseId === currentPhase?.id && t.visibleToClient && t.status !== "completed"
   );
   const nextTask = pendingTasks[0];
 
-  // Deliverables for current phase
   const deliverables = mockDeliverables.filter(
     (d) => d.phaseId === currentPhase?.id && d.visibleToClient
   );
 
-  // Recent updates
   const updates = mockUpdates.filter((u) => u.clientId === client.id && u.visibleToClient).slice(0, 2);
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Status Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Package</p>
-          <p className="text-sm font-medium text-foreground mt-1">{project?.projectName || "—"}</p>
-        </div>
-        <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Current Phase</p>
-          <p className="text-sm font-medium text-foreground mt-1">{currentPhase?.name || "—"}</p>
-        </div>
-        <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</p>
-          <Badge variant="outline" className="mt-1 capitalize">{client.status.replace("_", " ")}</Badge>
-        </div>
-        <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Account Manager</p>
-          <p className="text-sm font-medium text-foreground mt-1">{accountManager?.firstName} {accountManager?.lastName}</p>
-        </div>
+        {[
+          { label: "Package", value: project?.projectName || "—" },
+          { label: "Current Phase", value: currentPhase?.name || "—" },
+          { label: "Status", badge: true, value: client.status.replace("_", " ") },
+          { label: "Account Manager", value: `${accountManager?.firstName} ${accountManager?.lastName}` },
+        ].map((item, i) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.07, duration: 0.4 }}
+            className="p-5 rounded-lg bg-card border border-border"
+          >
+            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
+            {item.badge ? (
+              <Badge variant="outline" className="mt-1.5 capitalize">{item.value}</Badge>
+            ) : (
+              <p className="text-sm font-medium text-foreground mt-1.5">{item.value}</p>
+            )}
+          </motion.div>
+        ))}
       </div>
 
       {/* Next Step Card */}
@@ -76,7 +77,7 @@ const ClientDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.3 }}
         >
           <Card className="bg-primary/[0.03] border-primary/20">
             <CardContent className="p-6 flex items-center justify-between gap-4">
@@ -89,7 +90,7 @@ const ClientDashboard: React.FC = () => {
                   <p className="text-lg font-medium text-foreground mt-0.5">{nextTask.title}</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0">
+              <Button className="gap-2 shrink-0 hover:scale-[1.02] active:scale-[0.98]">
                 Start <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -97,42 +98,48 @@ const ClientDashboard: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Phase Journey Tracker */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium">Your Journey</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {phases.map((phase, i) => (
-              <React.Fragment key={phase.id}>
-                <div className="flex flex-col items-center min-w-[100px] shrink-0">
-                  <div
-                    className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}
-                  >
-                    {phase.status === "completed" ? (
-                      <CheckCircle className="h-4 w-4" />
-                    ) : phase.status === "locked" ? (
-                      <Lock className="h-3.5 w-3.5" />
-                    ) : (
-                      i + 1
+      {/* Phase Journey Tracker — Full Width */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-medium">Your Journey</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center w-full">
+              {phases.map((phase, i) => (
+                <React.Fragment key={phase.id}>
+                  <div className="flex flex-col items-center flex-1 min-w-0">
+                    <div
+                      className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}
+                    >
+                      {phase.status === "completed" ? (
+                        <CheckCircle className="h-4 w-4" />
+                      ) : phase.status === "locked" ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : (
+                        i + 1
+                      )}
+                    </div>
+                    <p className={`text-xs mt-2 text-center truncate max-w-full px-1 ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                      {phase.name}
+                    </p>
+                    {phase.estimatedTimeline && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{phase.estimatedTimeline}</p>
                     )}
                   </div>
-                  <p className={`text-xs mt-2 text-center ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                    {phase.name}
-                  </p>
-                  {phase.estimatedTimeline && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{phase.estimatedTimeline}</p>
+                  {i < phases.length - 1 && (
+                    <div className={`h-0.5 flex-1 min-w-3 shrink-0 -mt-6 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-border" : "bg-primary"}`} />
                   )}
-                </div>
-                {i < phases.length - 1 && (
-                  <div className={`h-0.5 w-6 shrink-0 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-muted" : "bg-primary"}`} />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                </React.Fragment>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Two Column Layout */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -150,7 +157,7 @@ const ClientDashboard: React.FC = () => {
                 return (
                   <div
                     key={task.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors cursor-pointer"
+                    className="group flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
                   >
                     <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">
                       <Icon className="h-4 w-4 text-muted-foreground" />
@@ -159,7 +166,7 @@ const ClientDashboard: React.FC = () => {
                       <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
                       <p className="text-xs text-muted-foreground capitalize">{task.taskType}</p>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
                 );
               })
@@ -179,7 +186,7 @@ const ClientDashboard: React.FC = () => {
               deliverables.map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors cursor-pointer"
+                  className="group flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
                 >
                   <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
                     <FileCheck className="h-4 w-4 text-primary" />
@@ -192,7 +199,7 @@ const ClientDashboard: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <Button variant="ghost" size="sm" className="text-xs">View</Button>
+                  <Button variant="outline" size="sm" className="text-xs shrink-0">View</Button>
                 </div>
               ))
             )}

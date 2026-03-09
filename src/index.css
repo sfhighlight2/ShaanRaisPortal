@@ -84,7 +84,7 @@
     --secondary-foreground: 0 0% 15%;
 
     --muted: 30 8% 93%;
-    --muted-foreground: 0 0% 40%;
+    --muted-foreground: 0 0% 35%;
 
     --accent: 37 45% 49%;
     --accent-foreground: 40 20% 98%;
@@ -98,8 +98,8 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 10%;
 
-    --border: 30 12% 88%;
-    --input: 30 12% 88%;
+    --border: 30 12% 82%;
+    --input: 30 12% 82%;
     --ring: 37 45% 49%;
 
     --radius: 1rem;
@@ -137,7 +137,7 @@
     --secondary-foreground: 40 10% 90%;
 
     --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 50%;
+    --muted-foreground: 0 0% 55%;
 
     --accent: 37 45% 55%;
     --accent-foreground: 0 0% 6%;
@@ -151,8 +151,8 @@
     --warning: 38 85% 45%;
     --warning-foreground: 0 0% 10%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 37 45% 55%;
 
     --sidebar-background: 0 0% 4%;
@@ -177,7 +177,4 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  h1, h2, h3 {
-    font-family: 'Playfair Display', serif;
-  }
 }
