@@ -20,7 +20,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Acumin Pro", "Inter", "system-ui", "sans-serif"],
-        heading: ["Dharma Gothic E", "Impact", "sans-serif"],
+        heading: ["General Sans", "Inter", "system-ui", "sans-serif"],
         display: ["Blacklist", "Georgia", "serif"],
       },
       colors: {
