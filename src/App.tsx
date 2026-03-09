@@ -8,9 +8,24 @@ import { AppLayout } from "@/components/layout/AppLayout";
 
 import Login from "./pages/Login";
 import Welcome from "./pages/Welcome";
-import ClientDashboard from "./pages/client/Dashboard";
-import AdminDashboard from "./pages/admin/Dashboard";
 import NotFound from "./pages/NotFound";
+
+// Client pages
+import ClientDashboard from "./pages/client/Dashboard";
+import ClientTasks from "./pages/client/Tasks";
+import ClientDeliverables from "./pages/client/Deliverables";
+import ClientDocuments from "./pages/client/Documents";
+import ClientUpdates from "./pages/client/Updates";
+import ClientProfile from "./pages/client/Profile";
+
+// Admin pages
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminClients from "./pages/admin/Clients";
+import AdminClientDetail from "./pages/admin/ClientDetail";
+import AdminTemplates from "./pages/admin/Templates";
+import AdminQuestions from "./pages/admin/Questions";
+import AdminTeam from "./pages/admin/Team";
+import AdminSettings from "./pages/admin/Settings";
 
 const queryClient = new QueryClient();
 
@@ -42,19 +57,20 @@ function AppRoutes() {
       <Routes>
         {/* Client routes */}
         <Route path="/dashboard" element={<ClientDashboard />} />
-        <Route path="/tasks" element={<ClientDashboard />} />
-        <Route path="/deliverables" element={<ClientDashboard />} />
-        <Route path="/documents" element={<ClientDashboard />} />
-        <Route path="/updates" element={<ClientDashboard />} />
-        <Route path="/profile" element={<ClientDashboard />} />
+        <Route path="/tasks" element={<ClientTasks />} />
+        <Route path="/deliverables" element={<ClientDeliverables />} />
+        <Route path="/documents" element={<ClientDocuments />} />
+        <Route path="/updates" element={<ClientUpdates />} />
+        <Route path="/profile" element={<ClientProfile />} />
 
         {/* Admin routes */}
         <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/clients" element={<AdminDashboard />} />
-        <Route path="/admin/templates" element={<AdminDashboard />} />
-        <Route path="/admin/questions" element={<AdminDashboard />} />
-        <Route path="/admin/team" element={<AdminDashboard />} />
-        <Route path="/admin/settings" element={<AdminDashboard />} />
+        <Route path="/admin/clients" element={<AdminClients />} />
+        <Route path="/admin/clients/:clientId" element={<AdminClientDetail />} />
+        <Route path="/admin/templates" element={<AdminTemplates />} />
+        <Route path="/admin/questions" element={<AdminQuestions />} />
+        <Route path="/admin/team" element={<AdminTeam />} />
+        <Route path="/admin/settings" element={<AdminSettings />} />
 
         {/* Root redirect based on role */}
         <Route
