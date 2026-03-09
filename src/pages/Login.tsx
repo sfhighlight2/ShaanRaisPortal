@@ -24,7 +24,7 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex">
       {/* Left branded panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[hsl(0,0%,6%)] relative overflow-hidden items-center justify-center p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#1f2a3a] relative overflow-hidden items-center justify-center p-12">
         <div className="absolute inset-0 opacity-[0.03]" style={{
           backgroundImage: "radial-gradient(circle at 1px 1px, hsl(37,45%,49%) 1px, transparent 0)",
           backgroundSize: "40px 40px",
