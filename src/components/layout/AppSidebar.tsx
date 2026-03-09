@@ -49,9 +49,9 @@ export function AppSidebar() {
         {/* Logo */}
         <div className="px-4 mb-6 flex justify-center">
           {!collapsed ? (
-            <img src={logoImg} alt="Shaan Rais Media" className="h-16 w-auto" />
+            <img src={logoImg} alt="Shaan Rais Media" className="h-24 w-auto" />
           ) : (
-            <img src={logoImg} alt="Shaan Rais Media" className="h-8 w-8 object-contain" />
+            <img src={logoImg} alt="Shaan Rais Media" className="h-10 w-10 object-contain" />
           )}
         </div>
 

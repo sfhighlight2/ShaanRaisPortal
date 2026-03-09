@@ -55,7 +55,7 @@ const Login: React.FC = () => {
           className="w-full max-w-sm"
         >
           <div className="lg:hidden mb-8 flex flex-col items-center">
-            <img src={logoImg} alt="Shaan Rais Media" className="h-20 w-auto mb-2" />
+            <img src={logoImg} alt="Shaan Rais Media" className="h-28 w-auto mb-2" />
             <p className="text-sm text-muted-foreground">Client Portal</p>
           </div>
 
