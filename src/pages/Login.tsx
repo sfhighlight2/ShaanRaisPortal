@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import logoImg from "@/assets/shaan-rais-logo.png";
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -32,12 +33,10 @@ const Login: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="relative z-10 max-w-md"
+          className="relative z-10 flex flex-col items-center text-center max-w-md"
         >
-          <h1 className="text-4xl md:text-5xl font-display font-semibold text-[hsl(40,10%,90%)] leading-tight">
-            Shaan Rais
-          </h1>
-          <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mt-4 mb-6" />
+          <img src={logoImg} alt="Shaan Rais Media" className="h-40 w-auto mb-8" />
+          <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mb-6" />
           <p className="text-lg text-[hsl(0,0%,50%)] leading-relaxed">
             Your dedicated client portal. Track progress, access deliverables, and stay connected with your team.
           </p>
@@ -55,9 +54,9 @@ const Login: React.FC = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="w-full max-w-sm"
         >
-          <div className="lg:hidden mb-8">
-            <h1 className="text-2xl font-display font-semibold text-foreground">Shaan Rais</h1>
-            <p className="text-sm text-muted-foreground mt-1">Client Portal</p>
+          <div className="lg:hidden mb-8 flex flex-col items-center">
+            <img src={logoImg} alt="Shaan Rais Media" className="h-20 w-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Client Portal</p>
           </div>
 
           <h2 className="text-2xl font-heading font-semibold text-foreground">
