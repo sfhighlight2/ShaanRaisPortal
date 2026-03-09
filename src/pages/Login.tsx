@@ -54,9 +54,9 @@ const Login: React.FC = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="w-full max-w-sm"
         >
-          <div className="lg:hidden mb-8">
-            <h1 className="text-2xl font-display font-semibold text-foreground">Shaan Rais</h1>
-            <p className="text-sm text-muted-foreground mt-1">Client Portal</p>
+          <div className="lg:hidden mb-8 flex flex-col items-center">
+            <img src={logoImg} alt="Shaan Rais Media" className="h-20 w-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Client Portal</p>
           </div>
 
           <h2 className="text-2xl font-heading font-semibold text-foreground">
