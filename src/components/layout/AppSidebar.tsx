@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { mockNotifications } from "@/lib/mock-data";
+import logoImg from "@/assets/shaan-rais-logo.png";
 
 const clientNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -46,18 +47,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarContent className="py-4">
         {/* Logo */}
-        <div className="px-4 mb-6">
+        <div className="px-4 mb-6 flex justify-center">
           {!collapsed ? (
-            <div>
-              <h2 className="text-lg font-display font-semibold text-sidebar-foreground tracking-tight">
-                Shaan Rais
-              </h2>
-              <p className="text-xs text-sidebar-muted mt-0.5">Client Portal</p>
-            </div>
+            <img src={logoImg} alt="Shaan Rais Media" className="h-16 w-auto" />
           ) : (
-            <div className="flex items-center justify-center">
-              <span className="text-xl font-display font-bold text-sidebar-primary">S</span>
-            </div>
+            <img src={logoImg} alt="Shaan Rais Media" className="h-8 w-8 object-contain" />
           )}
         </div>
 
