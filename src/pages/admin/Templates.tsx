@@ -73,11 +73,12 @@ const AdminTemplates: React.FC = () => {
 
       {/* Templates List */}
       <div className="space-y-4">
-        {mockTemplates.map((template) => (
+      {mockTemplates.map((template, index) => (
           <motion.div
             key={template.id}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
           >
             <Card>
               <CardHeader className="pb-3">
