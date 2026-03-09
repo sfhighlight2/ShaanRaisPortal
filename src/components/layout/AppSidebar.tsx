@@ -49,7 +49,7 @@ export function AppSidebar() {
         <div className="px-4 mb-6">
           {!collapsed ? (
             <div>
-              <h2 className="text-lg font-serif font-semibold text-sidebar-foreground tracking-tight">
+              <h2 className="text-lg font-display font-semibold text-sidebar-foreground tracking-tight">
                 Shaan Rais
               </h2>
               <p className="text-xs text-sidebar-muted mt-0.5">Client Portal</p>
