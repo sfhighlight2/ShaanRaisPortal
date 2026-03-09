@@ -35,7 +35,7 @@ const Login: React.FC = () => {
           transition={{ duration: 0.8 }}
           className="relative z-10 flex flex-col items-center text-center max-w-md"
         >
-          <img src={logoImg} alt="Shaan Rais Media" className="h-40 w-auto mb-8" />
+          <img src={logoImg} alt="Shaan Rais Media" className="h-56 w-auto mb-8" />
           <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mb-6" />
           <p className="text-lg text-[hsl(0,0%,50%)] leading-relaxed">
             Your dedicated client portal. Track progress, access deliverables, and stay connected with your team.
