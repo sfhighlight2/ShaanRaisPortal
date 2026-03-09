@@ -85,7 +85,7 @@ const ClientUpdates: React.FC = () => {
                         <MessageSquare className="h-3.5 w-3.5 text-primary" />
                       </div>
 
-                      <div className="bg-card rounded-lg border border-border p-4">
+                      <div className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-all duration-200">
                         <div className="flex items-start justify-between gap-4 mb-2">
                           <h3 className="font-medium text-foreground">{update.title}</h3>
                           <Badge variant="outline" className="text-[10px] shrink-0">

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, FileText, BarChart3 } from "lucide-react";
+import logo from "@/assets/shaan-rais-logo.png";
 
 const steps = [
   {
@@ -33,7 +34,14 @@ const Welcome: React.FC = () => {
         transition={{ duration: 0.6 }}
         className="max-w-lg w-full text-center"
       >
-        <div className="w-12 h-0.5 bg-primary mx-auto mb-8" />
+        <motion.img
+          src={logo}
+          alt="Shaan Rais Media"
+          className="h-16 mx-auto mb-8 object-contain"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        />
 
         <h1 className="text-3xl md:text-4xl font-heading font-semibold text-foreground leading-tight">
           Welcome, {user?.firstName}
@@ -43,7 +51,7 @@ const Welcome: React.FC = () => {
           informed and engaged throughout your project is right here.
         </p>
 
-        <div className="mt-10 space-y-4">
+        <div className="mt-10 space-y-5">
           {steps.map((step, i) => (
             <motion.div
               key={step.title}
@@ -67,9 +75,9 @@ const Welcome: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.9 }}
-          className="mt-10"
+          className="mt-12"
         >
-          <Button onClick={completeWelcome} size="lg" className="px-10 h-12 text-sm font-medium">
+          <Button onClick={completeWelcome} size="lg" className="px-10 h-12 text-sm font-medium hover:scale-[1.02] active:scale-[0.98]">
             Enter your portal
           </Button>
         </motion.div>

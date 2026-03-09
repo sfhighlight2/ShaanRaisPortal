@@ -6,6 +6,13 @@ import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { mockNotifications } from "@/lib/mock-data";
 
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 interface AppLayoutProps {
   children: React.ReactNode;
 }
@@ -20,9 +27,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
-          <header className="h-14 flex items-center justify-between border-b border-border bg-background/80 backdrop-blur-sm px-4 sticky top-0 z-30">
-            <div className="flex items-center gap-3">
+          <header className="h-16 flex items-center justify-between border-b border-border bg-background/80 backdrop-blur-sm px-5 sticky top-0 z-30 shadow-[0_1px_3px_0_hsl(0_0%_0%/0.04)]">
+            <div className="flex items-center gap-4">
               <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {getGreeting()}, <span className="text-foreground font-medium">{user?.firstName}</span>
+              </span>
             </div>
             <div className="flex items-center gap-4">
               <button className="relative text-muted-foreground hover:text-foreground transition-colors">

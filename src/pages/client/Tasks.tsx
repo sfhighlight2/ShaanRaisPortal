@@ -130,7 +130,7 @@ const ClientTasks: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+                    <Card className="group hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer">
                       <CardContent className="p-4 flex items-center gap-4">
                         <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
                           task.status === "completed" ? "bg-success/10" : "bg-muted"
