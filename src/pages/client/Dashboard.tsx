@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,7 @@ const phaseStatusStyles: Record<PhaseStatus, string> = {
 };
 
 const ClientDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const client = mockClients[0];
   const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
   const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -90,7 +92,7 @@ const ClientDashboard: React.FC = () => {
                   <p className="text-lg font-medium text-foreground mt-0.5">{nextTask.title}</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0 hover:scale-[1.02] active:scale-[0.98]">
+              <Button onClick={() => navigate("/tasks")} className="gap-2 shrink-0 hover:scale-[1.02] active:scale-[0.98]">
                 Start <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -145,8 +147,11 @@ const ClientDashboard: React.FC = () => {
       <div className="grid md:grid-cols-2 gap-6">
         {/* Tasks */}
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-medium">My Tasks</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/tasks")} className="text-xs gap-1">
+              View All <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             {pendingTasks.length === 0 ? (
@@ -157,6 +162,7 @@ const ClientDashboard: React.FC = () => {
                 return (
                   <div
                     key={task.id}
+                    onClick={() => navigate("/tasks")}
                     className="group flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
                   >
                     <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">
@@ -176,8 +182,11 @@ const ClientDashboard: React.FC = () => {
 
         {/* Deliverables */}
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-medium">Recent Deliverables</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/deliverables")} className="text-xs gap-1">
+              View All <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             {deliverables.length === 0 ? (
@@ -186,6 +195,7 @@ const ClientDashboard: React.FC = () => {
               deliverables.map((d) => (
                 <div
                   key={d.id}
+                  onClick={() => navigate("/deliverables")}
                   className="group flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
                 >
                   <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
@@ -199,7 +209,7 @@ const ClientDashboard: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <Button variant="outline" size="sm" className="text-xs shrink-0">View</Button>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
               ))
             )}
@@ -209,15 +219,22 @@ const ClientDashboard: React.FC = () => {
 
       {/* Recent Updates */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base font-medium">Recent Updates</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/updates")} className="text-xs gap-1">
+            View All <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {updates.length === 0 ? (
             <p className="text-sm text-muted-foreground">No updates yet.</p>
           ) : (
             updates.map((update) => (
-              <div key={update.id} className="border-l-2 border-primary/30 pl-4">
+              <div
+                key={update.id}
+                onClick={() => navigate("/updates")}
+                className="border-l-2 border-primary/30 pl-4 cursor-pointer hover:border-primary transition-colors"
+              >
                 <p className="text-sm font-medium text-foreground">{update.title}</p>
                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{update.body}</p>
                 <p className="text-xs text-muted-foreground mt-2">

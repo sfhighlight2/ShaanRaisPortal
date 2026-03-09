@@ -4,6 +4,7 @@ import { FileText, Download, Eye, ExternalLink, FolderOpen, File, FileCheck } fr
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import { mockClients, mockDocuments } from "@/lib/mock-data";
 
 const documentTypeIcons: Record<string, React.ElementType> = {
@@ -21,14 +22,29 @@ const documentTypeLabels: Record<string, string> = {
 };
 
 const ClientDocuments: React.FC = () => {
+  const { toast } = useToast();
   const client = mockClients[0];
   const documents = mockDocuments.filter((d) => d.clientId === client.id && d.visibleToClient);
 
-  // Group by type
   const contracts = documents.filter((d) => d.documentType === "contract");
   const sows = documents.filter((d) => d.documentType === "sow");
   const agreements = documents.filter((d) => d.documentType === "agreement");
-  const other = documents.filter((d) => d.documentType === "other");
+
+  const handleView = (title: string) => {
+    toast({ title: "Opening Preview", description: `Viewing "${title}" — file preview will be available once connected to storage.` });
+  };
+
+  const handleDownload = (title: string) => {
+    toast({ title: "Download Started", description: `Downloading "${title}" — file downloads will be available once connected to storage.` });
+  };
+
+  const handleOpenDrive = () => {
+    if (client.googleDriveUrl) {
+      window.open(client.googleDriveUrl, "_blank", "noopener,noreferrer");
+    } else {
+      toast({ title: "Drive Not Available", description: "Google Drive folder has not been set up yet." });
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -52,7 +68,7 @@ const ClientDocuments: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Access your complete project folder in Google Drive</p>
               </div>
             </div>
-            <Button className="gap-2 shrink-0">
+            <Button onClick={handleOpenDrive} className="gap-2 shrink-0">
               Open Drive <ExternalLink className="h-4 w-4" />
             </Button>
           </CardContent>
@@ -105,7 +121,8 @@ const ClientDocuments: React.FC = () => {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
+                    onClick={() => handleView(doc.title)}
                   >
                     <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <Icon className="h-5 w-5 text-muted-foreground" />
@@ -122,10 +139,10 @@ const ClientDocuments: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button variant="ghost" size="sm" className="h-8 gap-1.5">
+                      <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleView(doc.title); }}>
                         <Eye className="h-3.5 w-3.5" /> View
                       </Button>
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownload(doc.title); }}>
                         <Download className="h-3.5 w-3.5" /> Download
                       </Button>
                     </div>
