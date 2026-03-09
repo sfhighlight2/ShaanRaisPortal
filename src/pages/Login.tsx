@@ -56,7 +56,7 @@ const Login: React.FC = () => {
           className="w-full max-w-sm"
         >
           <div className="lg:hidden mb-8">
-            <h1 className="text-2xl font-serif font-semibold text-foreground">Shaan Rais</h1>
+            <h1 className="text-2xl font-display font-semibold text-foreground">Shaan Rais</h1>
             <p className="text-sm text-muted-foreground mt-1">Client Portal</p>
           </div>
 
