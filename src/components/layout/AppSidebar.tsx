@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { mockNotifications } from "@/lib/mock-data";
+import logoImg from "@/assets/shaan-rais-logo.png";
 
 const clientNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
