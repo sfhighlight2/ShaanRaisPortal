@@ -4,6 +4,7 @@ import { FileText, Download, Eye, CheckCircle, Clock, Lock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import {
   mockClients, mockProjects, mockPhases, mockDeliverables,
 } from "@/lib/mock-data";
@@ -17,17 +18,25 @@ const phaseStatusIcons: Record<PhaseStatus, React.ElementType> = {
 };
 
 const ClientDeliverables: React.FC = () => {
+  const { toast } = useToast();
   const client = mockClients[0];
   const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
   const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Get deliverables grouped by phase
   const deliverablesByPhase = phases.map((phase) => ({
     phase,
     deliverables: mockDeliverables.filter((d) => d.phaseId === phase.id && d.visibleToClient),
   })).filter((group) => group.deliverables.length > 0 || group.phase.status !== "locked");
 
   const totalDeliverables = deliverablesByPhase.reduce((acc, g) => acc + g.deliverables.length, 0);
+
+  const handleView = (title: string) => {
+    toast({ title: "Opening Preview", description: `Viewing "${title}" — file preview will be available once connected to storage.` });
+  };
+
+  const handleDownload = (title: string) => {
+    toast({ title: "Download Started", description: `Downloading "${title}" — file downloads will be available once connected to storage.` });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -108,7 +117,8 @@ const ClientDeliverables: React.FC = () => {
                       {group.deliverables.map((deliverable) => (
                         <div
                           key={deliverable.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors"
+                          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
+                          onClick={() => handleView(deliverable.title)}
                         >
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                             <FileText className="h-5 w-5 text-primary" />
@@ -125,10 +135,10 @@ const ClientDeliverables: React.FC = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <Button variant="ghost" size="sm" className="h-8 gap-1.5">
+                            <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleView(deliverable.title); }}>
                               <Eye className="h-3.5 w-3.5" /> View
                             </Button>
-                            <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownload(deliverable.title); }}>
                               <Download className="h-3.5 w-3.5" /> Download
                             </Button>
                           </div>

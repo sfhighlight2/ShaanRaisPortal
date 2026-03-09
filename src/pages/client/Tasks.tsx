@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import {
   mockClients, mockProjects, mockPhases, mockTasks,
 } from "@/lib/mock-data";
@@ -40,6 +41,7 @@ const statusStyles: Record<TaskStatus, { bg: string; text: string }> = {
 
 const ClientTasks: React.FC = () => {
   const [activeTab, setActiveTab] = useState("pending");
+  const { toast } = useToast();
 
   const client = mockClients[0];
   const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
@@ -56,6 +58,22 @@ const ClientTasks: React.FC = () => {
   const completedTasks = allTasks.filter((t) => t.status === "completed");
 
   const displayTasks = activeTab === "pending" ? pendingTasks : completedTasks;
+
+  const handleTaskClick = (task: typeof allTasks[0]) => {
+    if (task.status === "completed") return;
+    toast({
+      title: `Opening: ${task.title}`,
+      description: `This ${taskTypeLabels[task.taskType].toLowerCase()} task will be available once connected to the backend.`,
+    });
+  };
+
+  const handleStartTask = (e: React.MouseEvent, task: typeof allTasks[0]) => {
+    e.stopPropagation();
+    toast({
+      title: "Task Started",
+      description: `"${task.title}" has been marked as in progress.`,
+    });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -130,7 +148,10 @@ const ClientTasks: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Card className="group hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer">
+                    <Card
+                      onClick={() => handleTaskClick(task)}
+                      className="group hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
+                    >
                       <CardContent className="p-4 flex items-center gap-4">
                         <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
                           task.status === "completed" ? "bg-success/10" : "bg-muted"
@@ -153,7 +174,11 @@ const ClientTasks: React.FC = () => {
                           </div>
                         </div>
                         {task.status !== "completed" && (
-                          <Button size="sm" className="gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            className="gap-1.5 shrink-0"
+                            onClick={(e) => handleStartTask(e, task)}
+                          >
                             Start <ArrowRight className="h-3.5 w-3.5" />
                           </Button>
                         )}
