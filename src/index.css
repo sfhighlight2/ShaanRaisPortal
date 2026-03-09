@@ -1,4 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Custom Font Faces — Replace src URLs with your hosted font files */
+@font-face {
+  font-family: 'Acumin Pro';
+  src: local('Acumin Pro'), local('AcuminPro-Regular');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Acumin Pro';
+  src: local('Acumin Pro Medium'), local('AcuminPro-Medium');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Acumin Pro';
+  src: local('Acumin Pro Semibold'), local('AcuminPro-Semibold');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Acumin Pro';
+  src: local('Acumin Pro Bold'), local('AcuminPro-Bold');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Dharma Gothic E';
+  src: local('Dharma Gothic E'), local('DharmaGothicE-Regular');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dharma Gothic E';
+  src: local('Dharma Gothic E Bold'), local('DharmaGothicE-Bold');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dharma Gothic E';
+  src: local('Dharma Gothic E ExBold'), local('DharmaGothicE-ExBold');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Blacklist';
+  src: local('Blacklist');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 @tailwind base;
 @tailwind components;

@@ -27,7 +27,7 @@ const AdminQuestions: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-foreground">Questions</h1>
+        <h1 className="text-2xl font-heading font-semibold text-foreground">Questions</h1>
         <p className="text-sm text-muted-foreground mt-1">Respond to client questions and inquiries.</p>
       </div>
 

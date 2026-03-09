@@ -14,7 +14,7 @@ const ClientUpdates: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-foreground">Updates</h1>
+        <h1 className="text-2xl font-heading font-semibold text-foreground">Updates</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Stay informed about your project progress and team communications.
         </p>

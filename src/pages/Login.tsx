@@ -34,7 +34,7 @@ const Login: React.FC = () => {
           transition={{ duration: 0.8 }}
           className="relative z-10 max-w-md"
         >
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold text-[hsl(40,10%,90%)] leading-tight">
+          <h1 className="text-4xl md:text-5xl font-display font-semibold text-[hsl(40,10%,90%)] leading-tight">
             Shaan Rais
           </h1>
           <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mt-4 mb-6" />
@@ -56,11 +56,11 @@ const Login: React.FC = () => {
           className="w-full max-w-sm"
         >
           <div className="lg:hidden mb-8">
-            <h1 className="text-2xl font-serif font-semibold text-foreground">Shaan Rais</h1>
+            <h1 className="text-2xl font-display font-semibold text-foreground">Shaan Rais</h1>
             <p className="text-sm text-muted-foreground mt-1">Client Portal</p>
           </div>
 
-          <h2 className="text-2xl font-serif font-semibold text-foreground">
+          <h2 className="text-2xl font-heading font-semibold text-foreground">
             Welcome back
           </h2>
           <p className="text-sm text-muted-foreground mt-2 mb-8">

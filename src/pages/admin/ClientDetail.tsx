@@ -70,7 +70,7 @@ const AdminClientDetail: React.FC = () => {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-serif font-semibold text-foreground">{client.companyName}</h1>
+              <h1 className="text-2xl font-heading font-semibold text-foreground">{client.companyName}</h1>
               <Badge className={`text-xs ${statusColors[client.status]}`}>
                 {client.status.replace("_", " ")}
               </Badge>

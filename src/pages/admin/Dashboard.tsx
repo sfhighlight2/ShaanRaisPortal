@@ -39,7 +39,7 @@ const AdminDashboard: React.FC = () => {
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-foreground">Overview</h1>
+        <h1 className="text-2xl font-heading font-semibold text-foreground">Overview</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage all client accounts from one place.</p>
       </div>
 
