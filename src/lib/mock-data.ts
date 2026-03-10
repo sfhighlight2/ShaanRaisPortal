@@ -1,6 +1,7 @@
 import type {
   User, Client, Project, Phase, Task, Deliverable,
   Document, Update, Question, ActivityLog, Notification, PackageTemplate,
+  OnboardingPhase, OnboardingTask, ManagerTaskCompletion, Resource,
 } from "./types";
 
 // ===== Users =====
@@ -195,3 +196,84 @@ export const getProjectsByClientId = (clientId: string) => mockProjects.filter((
 export const getPhasesByProjectId = (projectId: string) => mockPhases.filter((ph) => ph.projectId === projectId);
 export const getTasksByPhaseId = (phaseId: string) => mockTasks.filter((t) => t.phaseId === phaseId);
 export const getDeliverablesByPhaseId = (phaseId: string) => mockDeliverables.filter((d) => d.phaseId === phaseId);
+
+// ===== Onboarding Phases =====
+export const mockOnboardingPhases: OnboardingPhase[] = [
+  { id: "op1", name: "Welcome & Account Setup", description: "Get set up with all company systems and accounts.", displayOrder: 1, createdAt: "2024-01-01" },
+  { id: "op2", name: "Systems Training", description: "Learn the tools and platforms we use daily.", displayOrder: 2, createdAt: "2024-01-01" },
+  { id: "op3", name: "Client Management", description: "Understand how we onboard and manage clients.", displayOrder: 3, createdAt: "2024-01-01" },
+  { id: "op4", name: "Operations & Workflow", description: "Review SOPs, project lifecycle, and approvals.", displayOrder: 4, createdAt: "2024-01-01" },
+  { id: "op5", name: "Performance & Reporting", description: "Learn KPI tracking and reporting expectations.", displayOrder: 5, createdAt: "2024-01-01" },
+];
+
+// ===== Onboarding Tasks =====
+export const mockOnboardingTasks: OnboardingTask[] = [
+  // Phase 1: Welcome & Account Setup
+  { id: "ot1", phaseId: "op1", title: "Review company overview", description: "Read through the company mission, vision, and history document.", displayOrder: 1, required: true },
+  { id: "ot2", phaseId: "op1", title: "Login to Manager Dashboard", description: "Access your manager dashboard and familiarize yourself with the interface.", displayOrder: 2, required: true },
+  { id: "ot3", phaseId: "op1", title: "Setup company email access", description: "Configure your @shaanrais.com email account.", displayOrder: 3, required: true },
+  { id: "ot4", phaseId: "op1", title: "Join internal communication channels (Slack / WhatsApp)", description: "Get added to all relevant Slack channels and WhatsApp groups.", displayOrder: 4, required: true },
+  { id: "ot5", phaseId: "op1", title: "Review company policies", description: "Read and acknowledge the company handbook and policies.", displayOrder: 5, required: true },
+
+  // Phase 2: Systems Training
+  { id: "ot6", phaseId: "op2", title: "Watch CRM walkthrough", description: "Review the CRM training video to understand how we manage clients.", displayOrder: 1, required: true, resourceLink: "https://example.com/crm-video" },
+  { id: "ot7", phaseId: "op2", title: "Learn client onboarding workflow", description: "Step-by-step guide on how new clients are onboarded.", displayOrder: 2, required: true },
+  { id: "ot8", phaseId: "op2", title: "Review task management system", description: "Understand how tasks are assigned, tracked, and completed.", displayOrder: 3, required: true },
+  { id: "ot9", phaseId: "op2", title: "Understand reporting dashboard", description: "Learn how to read and use the analytics dashboard.", displayOrder: 4, required: false },
+
+  // Phase 3: Client Management
+  { id: "ot10", phaseId: "op3", title: "Review client onboarding checklist", description: "Go through the standard client onboarding checklist.", displayOrder: 1, required: true },
+  { id: "ot11", phaseId: "op3", title: "Understand service packages", description: "Learn all available service packages and what they include.", displayOrder: 2, required: true },
+  { id: "ot12", phaseId: "op3", title: "Review communication standards", description: "Understand response times, tone, and escalation paths.", displayOrder: 3, required: true },
+  { id: "ot13", phaseId: "op3", title: "Learn escalation procedures", description: "Know when and how to escalate client issues.", displayOrder: 4, required: true },
+
+  // Phase 4: Operations & Workflow
+  { id: "ot14", phaseId: "op4", title: "Review standard operating procedures", description: "Read through all manager-relevant SOPs.", displayOrder: 1, required: true },
+  { id: "ot15", phaseId: "op4", title: "Understand project lifecycle", description: "Learn the phases of a typical project from start to finish.", displayOrder: 2, required: true },
+  { id: "ot16", phaseId: "op4", title: "Learn internal approval processes", description: "Understand what needs approval and the chain of command.", displayOrder: 3, required: true },
+
+  // Phase 5: Performance & Reporting
+  { id: "ot17", phaseId: "op5", title: "Review weekly reporting expectations", description: "Learn what reports are due and when.", displayOrder: 1, required: true },
+  { id: "ot18", phaseId: "op5", title: "Learn KPI tracking", description: "Understand the key metrics you'll be measured on.", displayOrder: 2, required: true },
+  { id: "ot19", phaseId: "op5", title: "Submit first internal report", description: "Complete and submit your first practice report.", displayOrder: 3, required: true },
+];
+
+// ===== Manager Task Completion (pre-completed items for u2) =====
+export const mockManagerTaskCompletions: ManagerTaskCompletion[] = [
+  { id: "mc1", managerId: "u2", taskId: "ot1", completed: true, completedAt: "2024-01-15" },
+  { id: "mc2", managerId: "u2", taskId: "ot2", completed: true, completedAt: "2024-01-15" },
+  { id: "mc3", managerId: "u2", taskId: "ot3", completed: true, completedAt: "2024-01-16" },
+  { id: "mc4", managerId: "u2", taskId: "ot4", completed: true, completedAt: "2024-01-16" },
+  { id: "mc5", managerId: "u2", taskId: "ot5", completed: true, completedAt: "2024-01-17" },
+  { id: "mc6", managerId: "u2", taskId: "ot6", completed: true, completedAt: "2024-01-18" },
+  { id: "mc7", managerId: "u2", taskId: "ot7", completed: true, completedAt: "2024-01-19" },
+];
+
+// ===== Resources =====
+export const mockResources: Resource[] = [
+  // Company Overview
+  { id: "r1", title: "Company Mission & Vision", description: "Our core mission, vision statement, and company values.", category: "Company Overview", type: "gdoc", url: "https://docs.google.com/document/d/example1", displayOrder: 1, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r2", title: "Organizational Structure", description: "Team hierarchy, roles, and responsibilities chart.", category: "Company Overview", type: "pdf", url: "/files/org-structure.pdf", displayOrder: 2, visibleToRole: ["manager", "admin", "team_member"] },
+
+  // Training Materials
+  { id: "r3", title: "CRM Training Video", description: "Complete walkthrough of our CRM system and how to manage clients.", category: "Training Materials", type: "video", url: "https://www.youtube.com/watch?v=example", displayOrder: 1, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r4", title: "Client Onboarding Process", description: "Step-by-step guide for onboarding new clients.", category: "Training Materials", type: "gdoc", url: "https://docs.google.com/document/d/example2", displayOrder: 2, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r5", title: "Project Workflow Overview", description: "Detailed explanation of how projects move from inception to completion.", category: "Training Materials", type: "video", url: "https://www.youtube.com/watch?v=example2", displayOrder: 3, visibleToRole: ["manager", "admin", "team_member"] },
+
+  // Operations Guides
+  { id: "r6", title: "Manager SOP", description: "Standard operating procedures for all managers.", category: "Operations Guides", type: "pdf", url: "/files/manager-sop.pdf", displayOrder: 1, visibleToRole: ["manager", "admin"] },
+  { id: "r7", title: "Client Communication Standards", description: "Guidelines for professional client communications.", category: "Operations Guides", type: "gdoc", url: "https://docs.google.com/document/d/example3", displayOrder: 2, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r8", title: "Escalation Procedures", description: "How to handle and escalate client issues.", category: "Operations Guides", type: "pdf", url: "/files/escalation.pdf", displayOrder: 3, visibleToRole: ["manager", "admin"] },
+
+  // Important Links
+  { id: "r9", title: "CRM Dashboard", description: "Direct link to the CRM platform.", category: "Important Links", type: "link", url: "https://crm.shaanrais.com", displayOrder: 1, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r10", title: "Internal Chat", description: "Slack workspace for team communication.", category: "Important Links", type: "link", url: "https://shaanrais.slack.com", displayOrder: 2, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r11", title: "Document Library", description: "Shared Google Drive with all company documents.", category: "Important Links", type: "link", url: "https://drive.google.com/drive/folders/example", displayOrder: 3, visibleToRole: ["manager", "admin", "team_member"] },
+  { id: "r12", title: "Brand Guidelines", description: "Logo, fonts, colors, and brand usage guidelines.", category: "Company Overview", type: "file", filePath: "/files/brand-guidelines.zip", displayOrder: 3, visibleToRole: ["manager", "admin", "team_member"] },
+];
+
+// Onboarding helpers
+export const getOnboardingTasksByPhaseId = (phaseId: string) => mockOnboardingTasks.filter((t) => t.phaseId === phaseId);
+export const getManagerCompletions = (managerId: string) => mockManagerTaskCompletions.filter((c) => c.managerId === managerId);
+export const getResourcesByCategory = (category: string) => mockResources.filter((r) => r.category === category);
+

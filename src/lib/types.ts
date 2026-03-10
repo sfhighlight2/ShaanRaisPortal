@@ -188,3 +188,47 @@ export interface TemplateDeliverable {
   description?: string;
   sortOrder: number;
 }
+
+// ===== Onboarding Types =====
+
+export interface OnboardingPhase {
+  id: string;
+  name: string;
+  description?: string;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export interface OnboardingTask {
+  id: string;
+  phaseId: string;
+  title: string;
+  description?: string;
+  displayOrder: number;
+  required: boolean;
+  resourceLink?: string;
+}
+
+export interface ManagerTaskCompletion {
+  id: string;
+  managerId: string;
+  taskId: string;
+  completed: boolean;
+  completedAt?: string;
+}
+
+// ===== Resource Types =====
+
+export type ResourceType = "link" | "pdf" | "video" | "gdoc" | "file";
+
+export interface Resource {
+  id: string;
+  title: string;
+  description?: string;
+  category: string;
+  type: ResourceType;
+  url?: string;
+  filePath?: string;
+  displayOrder: number;
+  visibleToRole: UserRole[];
+}

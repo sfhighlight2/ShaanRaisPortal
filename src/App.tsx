@@ -26,6 +26,10 @@ import AdminTemplates from "./pages/admin/Templates";
 import AdminQuestions from "./pages/admin/Questions";
 import AdminTeam from "./pages/admin/Team";
 import AdminSettings from "./pages/admin/Settings";
+import AdminOnboarding from "./pages/admin/Onboarding";
+import AdminResources from "./pages/admin/Resources";
+import AdminOnboardingManagement from "./pages/admin/OnboardingManagement";
+import AdminResourcesManagement from "./pages/admin/ResourcesManagement";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +75,10 @@ function AppRoutes() {
         <Route path="/admin/questions" element={<AdminQuestions />} />
         <Route path="/admin/team" element={<AdminTeam />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
+        <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+        <Route path="/admin/resources" element={<AdminResources />} />
+        <Route path="/admin/onboarding-management" element={<AdminOnboardingManagement />} />
+        <Route path="/admin/resources-management" element={<AdminResourcesManagement />} />
 
         {/* Root redirect based on role */}
         <Route

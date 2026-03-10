@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, CheckSquare, Package, FileText,
   Bell, User, Settings, Users, Inbox, ClipboardList, BarChart3, Blocks,
+  GraduationCap, BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +31,19 @@ const adminNav = [
   { title: "Templates", url: "/admin/templates", icon: Blocks },
   { title: "Questions", url: "/admin/questions", icon: Inbox },
   { title: "Team", url: "/admin/team", icon: Users },
+  { title: "Onboarding Mgmt", url: "/admin/onboarding-management", icon: GraduationCap },
+  { title: "Resources Mgmt", url: "/admin/resources-management", icon: BookOpen },
+  { title: "Settings", url: "/admin/settings", icon: Settings },
+];
+
+const managerNav = [
+  { title: "Overview", url: "/admin", icon: BarChart3 },
+  { title: "Clients", url: "/admin/clients", icon: Users },
+  { title: "Templates", url: "/admin/templates", icon: Blocks },
+  { title: "Questions", url: "/admin/questions", icon: Inbox },
+  { title: "Team", url: "/admin/team", icon: Users },
+  { title: "Onboarding", url: "/admin/onboarding", icon: GraduationCap },
+  { title: "Resources", url: "/admin/resources", icon: BookOpen },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
@@ -40,7 +54,9 @@ export function AppSidebar() {
   const location = useLocation();
 
   const isAdmin = user?.role === "admin" || user?.role === "manager" || user?.role === "team_member";
-  const nav = isAdmin ? adminNav : clientNav;
+  const nav = isAdmin
+    ? (user?.role === "admin" ? adminNav : managerNav)
+    : clientNav;
   const unreadCount = mockNotifications.filter((n) => !n.read).length;
 
   return (
@@ -69,11 +85,10 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className={`relative transition-colors ${
-                          isActive
+                        className={`relative transition-colors ${isActive
                             ? "bg-sidebar-accent text-sidebar-primary font-medium"
                             : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                        }`}
+                          }`}
                         activeClassName=""
                       >
                         <item.icon className="mr-2 h-4 w-4 shrink-0" />
@@ -102,11 +117,10 @@ export function AppSidebar() {
                 <button
                   key={role}
                   onClick={() => switchRole(role)}
-                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
-                    user?.role === role
+                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${user?.role === role
                       ? "bg-sidebar-primary text-sidebar-primary-foreground"
                       : "bg-sidebar-accent text-sidebar-muted hover:text-sidebar-foreground"
-                  }`}
+                    }`}
                 >
                   {role}
                 </button>
