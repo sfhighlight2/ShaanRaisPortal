@@ -1,12 +1,25 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, MoreHorizontal, Mail, Shield } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Shield, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { mockUsers } from "@/lib/mock-data";
 import type { UserRole } from "@/lib/types";
 
@@ -17,8 +30,102 @@ const roleColors: Record<UserRole, string> = {
   client: "bg-warning/10 text-warning",
 };
 
+interface TeamProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: UserRole;
+  status: string;
+}
+
+const emptyForm = { first_name: "", last_name: "", email: "", password: "", role: "team_member" as UserRole };
+
 const AdminTeam: React.FC = () => {
-  const internalUsers = mockUsers.filter((u) => u.role !== "client");
+  const [members, setMembers] = useState<TeamProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editMember, setEditMember] = useState<TeamProfile | null>(null);
+  const [deleteMember, setDeleteMember] = useState<TeamProfile | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadMembers = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setMembers(mockUsers.filter(u => u.role !== "client").map(u => ({
+        id: u.id, first_name: u.firstName, last_name: u.lastName,
+        email: u.email, role: u.role as UserRole, status: u.status,
+      })));
+      setLoading(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .neq("role", "client")
+      .order("first_name");
+    setMembers((data as TeamProfile[]) ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  const openAdd = () => { setForm(emptyForm); setError(""); setShowAddDialog(true); };
+  const openEdit = (m: TeamProfile) => { setEditMember(m); setForm({ first_name: m.first_name, last_name: m.last_name, email: m.email, password: "", role: m.role }); setError(""); };
+
+  const handleCreate = async () => {
+    if (!form.email || !form.password || !form.first_name) { setError("Name, email and password are required."); return; }
+    setSubmitting(true); setError("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name, role: form.role }),
+    });
+    const json = await res.json();
+    setSubmitting(false);
+    if (json.error) { setError(json.error); return; }
+    setShowAddDialog(false);
+    loadMembers();
+  };
+
+  const handleUpdate = async () => {
+    if (!editMember) return;
+    setSubmitting(true); setError("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ action: "update", user_id: editMember.id, first_name: form.first_name, last_name: form.last_name, role: form.role }),
+    });
+    const json = await res.json();
+    setSubmitting(false);
+    if (json.error) { setError(json.error); return; }
+    setEditMember(null);
+    loadMembers();
+  };
+
+  const handleDeactivate = async (m: TeamProfile) => {
+    if (!isSupabaseConfigured) return;
+    const newStatus = m.status === "active" ? "inactive" : "active";
+    await supabase.from("profiles").update({ status: newStatus }).eq("id", m.id);
+    loadMembers();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteMember) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ action: "delete", user_id: deleteMember.id }),
+    });
+    setDeleteMember(null);
+    loadMembers();
+  };
+
+  const internalMembers = members.filter(u => u.role !== "client");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -27,37 +134,29 @@ const AdminTeam: React.FC = () => {
           <h1 className="text-2xl font-heading font-semibold text-foreground">Team</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage internal team members and permissions.</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={openAdd}>
           <Plus className="h-4 w-4" /> Add Team Member
         </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-semibold text-foreground">{internalUsers.length}</p>
-            <p className="text-xs text-muted-foreground">Team Members</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-semibold text-foreground">{internalUsers.filter((u) => u.role === "admin").length}</p>
-            <p className="text-xs text-muted-foreground">Admins</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-semibold text-foreground">{internalUsers.filter((u) => u.role === "manager").length}</p>
-            <p className="text-xs text-muted-foreground">Managers</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-semibold text-foreground">{internalUsers.filter((u) => u.status === "active").length}</p>
-            <p className="text-xs text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4">
+          <p className="text-2xl font-semibold text-foreground">{internalMembers.length}</p>
+          <p className="text-xs text-muted-foreground">Team Members</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-2xl font-semibold text-foreground">{internalMembers.filter(u => u.role === "admin").length}</p>
+          <p className="text-xs text-muted-foreground">Admins</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-2xl font-semibold text-foreground">{internalMembers.filter(u => u.role === "manager").length}</p>
+          <p className="text-xs text-muted-foreground">Managers</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-2xl font-semibold text-foreground">{internalMembers.filter(u => u.status === "active").length}</p>
+          <p className="text-xs text-muted-foreground">Active</p>
+        </CardContent></Card>
       </div>
 
       {/* Team Table */}
@@ -66,57 +165,75 @@ const AdminTeam: React.FC = () => {
           <CardTitle className="text-base font-medium">All Team Members</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {internalUsers.map((user) => (
-                <motion.tr
-                  key={user.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
-                  <TableCell className="pl-6">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                        {user.firstName[0]}{user.lastName[0]}
+          {loading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right pr-6">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {internalMembers.map((member) => (
+                  <motion.tr
+                    key={member.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="border-b transition-colors hover:bg-muted/50"
+                  >
+                    <TableCell className="pl-6">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                          {member.first_name?.[0]}{member.last_name?.[0]}
+                        </div>
+                        <p className="font-medium">{member.first_name} {member.last_name}</p>
                       </div>
-                      <p className="font-medium">{user.firstName} {user.lastName}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5" />
-                      {user.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={`text-[10px] capitalize ${roleColors[user.role]}`}>
-                      {user.role.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`text-[10px] capitalize ${user.status === "active" ? "text-success border-success/30" : ""}`}>
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-6">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </motion.tr>
-              ))}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="h-3.5 w-3.5" />
+                        {member.email}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`text-[10px] capitalize ${roleColors[member.role]}`}>
+                        {member.role.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] capitalize ${member.status === "active" ? "text-success border-success/30" : "text-muted-foreground"}`}>
+                        {member.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEdit(member)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeactivate(member)}>
+                            {member.status === "active" ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteMember(member)}>
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </motion.tr>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -134,7 +251,7 @@ const AdminTeam: React.FC = () => {
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• Full platform access</li>
                 <li>• Manage templates</li>
-                <li>• Manage users & permissions</li>
+                <li>• Manage users &amp; permissions</li>
                 <li>• Create/edit all clients</li>
               </ul>
             </div>
@@ -144,7 +261,7 @@ const AdminTeam: React.FC = () => {
                 <li>• Manage assigned clients</li>
                 <li>• Update project phases</li>
                 <li>• Post client updates</li>
-                <li>• Add tasks & deliverables</li>
+                <li>• Add tasks &amp; deliverables</li>
               </ul>
             </div>
             <div className="p-4 rounded-lg bg-muted">
@@ -159,6 +276,106 @@ const AdminTeam: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Team Member Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Team Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">First Name *</label>
+                <Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} placeholder="Jane" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Last Name</label>
+                <Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} placeholder="Smith" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Email *</label>
+              <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="jane@shaanrais.com" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Password *</label>
+              <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Role</label>
+              <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as UserRole }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="team_member">Team Member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={submitting}>{submitting ? "Creating…" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={!!editMember} onOpenChange={v => { if (!v) setEditMember(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">First Name</label>
+                <Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Last Name</label>
+                <Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Role</label>
+              <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as UserRole }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="team_member">Team Member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMember(null)}>Cancel</Button>
+            <Button onClick={handleUpdate} disabled={submitting}>{submitting ? "Saving…" : "Save Changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <AlertDialog open={!!deleteMember} onOpenChange={v => { if (!v) setDeleteMember(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete team member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {deleteMember?.first_name} {deleteMember?.last_name}'s account and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

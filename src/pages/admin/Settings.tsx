@@ -1,13 +1,44 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, Palette, Bell, Shield, Database, Globe } from "lucide-react";
+import { Settings, Palette, Bell, Shield, Database, User, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const AdminSettings: React.FC = () => {
+  const { user } = useAuth();
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+
+  // keep form in sync if user changes (e.g. after role switch)
+  useEffect(() => {
+    setFirstName(user?.firstName ?? "");
+    setLastName(user?.lastName ?? "");
+  }, [user]);
+
+  const handleProfileSave = async () => {
+    if (!isSupabaseConfigured || !user) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ first_name: firstName, last_name: lastName })
+      .eq("id", user.id);
+    setSaving(false);
+    if (!error) {
+      // Force a page reload so AuthContext re-fetches the updated profile
+      setSavedMsg("Profile saved! Refreshing…");
+      setTimeout(() => window.location.reload(), 1000);
+    } else {
+      setSavedMsg("Error saving profile: " + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -16,6 +47,47 @@ const AdminSettings: React.FC = () => {
       </div>
 
       <div className="grid gap-6">
+        {/* My Profile */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <User className="h-4 w-4" /> My Profile
+            </CardTitle>
+            <CardDescription>Update your display name. Changes appear throughout the portal immediately.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">First Name</label>
+                <Input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Last Name</label>
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-muted-foreground">Email (read-only)</label>
+              <Input value={user?.email ?? ""} disabled className="bg-muted/50" />
+            </div>
+            {savedMsg && <p className="text-sm text-success">{savedMsg}</p>}
+            <div className="flex justify-end">
+              <Button onClick={handleProfileSave} disabled={saving} className="gap-2">
+                <Save className="h-4 w-4" />
+                {saving ? "Saving…" : "Save Profile"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* General Settings */}
         <Card>
           <CardHeader>
@@ -102,18 +174,6 @@ const AdminSettings: React.FC = () => {
               </div>
               <Switch />
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Accent Color</p>
-                <p className="text-xs text-muted-foreground">Primary brand color</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary border-2 border-primary-foreground cursor-pointer" />
-                <div className="h-8 w-8 rounded-full bg-success cursor-pointer opacity-50 hover:opacity-100" />
-                <div className="h-8 w-8 rounded-full bg-[hsl(250,60%,50%)] cursor-pointer opacity-50 hover:opacity-100" />
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -133,15 +193,6 @@ const AdminSettings: React.FC = () => {
               </div>
               <Switch />
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Session Timeout</p>
-                <p className="text-xs text-muted-foreground">Auto logout after inactivity</p>
-              </div>
-              <Input className="w-[100px]" defaultValue="60" type="number" />
-              <span className="text-sm text-muted-foreground">minutes</span>
-            </div>
           </CardContent>
         </Card>
 
@@ -154,14 +205,6 @@ const AdminSettings: React.FC = () => {
             <CardDescription>Export and backup options</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Export All Data</p>
-                <p className="text-xs text-muted-foreground">Download a complete backup of all portal data</p>
-              </div>
-              <Button variant="outline" size="sm">Export</Button>
-            </div>
-            <Separator />
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Export Client List</p>
