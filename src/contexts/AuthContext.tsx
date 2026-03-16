@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { User, UserRole } from "@/lib/types";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
@@ -41,6 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // On mount: restore session if one exists
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -108,6 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchProfile]);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    if (!isSupabaseConfigured) {
+      console.error("Login failed: Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+      return false;
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.error("Login error:", error.message);
@@ -117,7 +126,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setIsFirstLogin(false);
   }, []);
@@ -128,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Dev-only: switch role by signing in as a different demo user
   const switchRole = useCallback(async (role: UserRole) => {
+    if (!isSupabaseConfigured) return;
     const roleEmails: Record<UserRole, string> = {
       admin: "sarah@shaanrais.com",
       manager: "james@shaanrais.com",
