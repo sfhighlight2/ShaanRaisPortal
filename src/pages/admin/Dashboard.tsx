@@ -8,6 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { mockClients, mockProjects, mockPhases, getUserById } from "@/lib/mock-data";
 import type { ClientStatus } from "@/lib/types";
 
@@ -52,15 +58,24 @@ const AdminDashboard: React.FC = () => {
         >
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-foreground">{totalClients}</p>
-                  <p className="text-xs text-muted-foreground">Total Clients</p>
-                </div>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger className="w-full text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold text-foreground">{totalClients}</p>
+                        <p className="text-xs text-muted-foreground">Total Clients</p>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Total number of clients in the system</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </CardContent>
           </Card>
         </motion.div>
@@ -72,15 +87,24 @@ const AdminDashboard: React.FC = () => {
         >
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-foreground">{activeClients}</p>
-                  <p className="text-xs text-muted-foreground">Active</p>
-                </div>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger className="w-full text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
+                        <CheckCircle className="h-5 w-5 text-success" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold text-foreground">{activeClients}</p>
+                        <p className="text-xs text-muted-foreground">Active</p>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Clients currently in active service phases</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </CardContent>
           </Card>
         </motion.div>

@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { mockClients, mockProjects, mockPhases, getUserById } from "@/lib/mock-data";
 import type { ClientStatus } from "@/lib/types";
 
@@ -94,9 +100,18 @@ const AdminClients: React.FC = () => {
                       <p className="text-sm text-muted-foreground">{project?.projectName || "—"}</p>
                     </TableCell>
                     <TableCell>
-                      <Badge className={`text-[10px] font-medium ${statusColors[client.status]}`}>
-                        {client.status.replace("_", " ")}
-                      </Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge className={`text-[10px] font-medium ${statusColors[client.status]}`}>
+                              {client.status.replace("_", " ")}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Current account relationship state</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
                     <TableCell>
                       <p className="text-sm text-muted-foreground">{currentPhase?.name || "—"}</p>

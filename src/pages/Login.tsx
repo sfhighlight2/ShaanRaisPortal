@@ -11,14 +11,18 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError("Please enter your email address");
       return;
     }
-    const success = login(email, password);
-    if (!success) setError("Invalid credentials");
+    setSubmitting(true);
+    const success = await login(email, password);
+    setSubmitting(false);
+    if (!success) setError("Invalid email or password");
   };
 
   return (
@@ -96,8 +100,8 @@ const Login: React.FC = () => {
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            <Button type="submit" className="w-full h-11 text-sm font-medium">
-              Sign in
+            <Button type="submit" className="w-full h-11 text-sm font-medium" disabled={submitting}>
+              {submitting ? "Signing in…" : "Sign in"}
             </Button>
           </form>
 
@@ -117,7 +121,7 @@ const Login: React.FC = () => {
               ].map((opt) => (
                 <button
                   key={opt.label}
-                  onClick={() => login(opt.email, "demo")}
+                  onClick={() => login(opt.email, "Demo1234!")}
                   className="text-[11px] px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                 >
                   {opt.label}

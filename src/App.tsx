@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Welcome from "./pages/Welcome";
 import NotFound from "./pages/NotFound";
+import HelpCenter from "./pages/HelpCenter";
 
 // Client pages
 import ClientDashboard from "./pages/client/Dashboard";
@@ -66,6 +67,7 @@ function AppRoutes() {
         <Route path="/documents" element={<ClientDocuments />} />
         <Route path="/updates" element={<ClientUpdates />} />
         <Route path="/profile" element={<ClientProfile />} />
+        <Route path="/help" element={<HelpCenter />} />
 
         {/* Admin routes */}
         <Route path="/admin" element={<AdminDashboard />} />

@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   mockClients, mockProjects, mockPhases, mockTasks,
   mockDeliverables, mockUpdates, getUserById,
 } from "@/lib/mock-data";
@@ -66,7 +72,16 @@ const ClientDashboard: React.FC = () => {
           >
             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
             {item.badge ? (
-              <Badge variant="outline" className="mt-1.5 capitalize">{item.value}</Badge>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="outline" className="mt-1.5 capitalize">{item.value}</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Your current relationship status with our team</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : (
               <p className="text-sm font-medium text-foreground mt-1.5">{item.value}</p>
             )}
@@ -115,17 +130,26 @@ const ClientDashboard: React.FC = () => {
               {phases.map((phase, i) => (
                 <React.Fragment key={phase.id}>
                   <div className="flex flex-col items-center flex-1 min-w-0">
-                    <div
-                      className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}
-                    >
-                      {phase.status === "completed" ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : phase.status === "locked" ? (
-                        <Lock className="h-3.5 w-3.5" />
-                      ) : (
-                        i + 1
-                      )}
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <div
+                            className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}
+                          >
+                            {phase.status === "completed" ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : phase.status === "locked" ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              i + 1
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">{phase.name}: {phase.status.charAt(0).toUpperCase() + phase.status.slice(1)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <p className={`text-xs mt-2 text-center truncate max-w-full px-1 ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {phase.name}
                     </p>

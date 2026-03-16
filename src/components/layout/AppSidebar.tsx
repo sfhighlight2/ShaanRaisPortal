@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, CheckSquare, Package, FileText,
   Bell, User, Settings, Users, Inbox, ClipboardList, BarChart3, Blocks,
-  GraduationCap, BookOpen,
+  GraduationCap, BookOpen, HelpCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +23,7 @@ const clientNav = [
   { title: "Documents", url: "/documents", icon: FileText },
   { title: "Updates", url: "/updates", icon: Bell },
   { title: "Profile", url: "/profile", icon: User },
+  { title: "Help", url: "/help", icon: HelpCircle },
 ];
 
 const adminNav = [
@@ -34,6 +35,7 @@ const adminNav = [
   { title: "Onboarding Mgmt", url: "/admin/onboarding-management", icon: GraduationCap },
   { title: "Resources Mgmt", url: "/admin/resources-management", icon: BookOpen },
   { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Help", url: "/help", icon: HelpCircle },
 ];
 
 const managerNav = [
@@ -45,6 +47,7 @@ const managerNav = [
   { title: "Onboarding", url: "/admin/onboarding", icon: GraduationCap },
   { title: "Resources", url: "/admin/resources", icon: BookOpen },
   { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Help", url: "/help", icon: HelpCircle },
 ];
 
 export function AppSidebar() {
