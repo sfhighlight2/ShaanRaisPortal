@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { Search, Filter, MoreHorizontal, Plus, Eye } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,10 +55,87 @@ interface ClientRow {
 
 interface Manager { id: string; first_name: string; last_name: string; }
 
+const UNASSIGNED = "__unassigned__";
+
 const emptyForm = {
   company_name: "", primary_contact_name: "", primary_contact_email: "",
-  phone: "", status: "lead" as ClientStatus, account_manager_id: "",
+  phone: "", status: "lead" as ClientStatus, account_manager_id: UNASSIGNED,
 };
+
+// ── Standalone form component (NOT defined inside AdminClients) ──────────────
+interface ClientFormProps {
+  form: typeof emptyForm;
+  onChange: (patch: Partial<typeof emptyForm>) => void;
+  managers: Manager[];
+  error: string;
+}
+
+const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers, error }) => (
+  <div className="space-y-3 py-2">
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">Company Name *</label>
+      <Input
+        value={form.company_name}
+        onChange={e => onChange({ company_name: e.target.value })}
+        placeholder="Acme Corp"
+      />
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Contact Name *</label>
+        <Input
+          value={form.primary_contact_name}
+          onChange={e => onChange({ primary_contact_name: e.target.value })}
+          placeholder="Jane Doe"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Contact Email</label>
+        <Input
+          type="email"
+          value={form.primary_contact_email}
+          onChange={e => onChange({ primary_contact_email: e.target.value })}
+          placeholder="jane@company.com"
+        />
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Phone</label>
+        <Input
+          value={form.phone}
+          onChange={e => onChange({ phone: e.target.value })}
+          placeholder="+1 555 000 0000"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Status</label>
+        <Select value={form.status} onValueChange={v => onChange({ status: v as ClientStatus })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
+              <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">Account Manager</label>
+      <Select value={form.account_manager_id} onValueChange={v => onChange({ account_manager_id: v })}>
+        <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+          {managers.map(m => (
+            <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+    {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>}
+  </div>
+);
+// ─────────────────────────────────────────────────────────────────────────────
 
 const AdminClients: React.FC = () => {
   const navigate = useNavigate();
@@ -73,10 +149,12 @@ const AdminClients: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const patchForm = (patch: Partial<typeof emptyForm>) =>
+    setForm(f => ({ ...f, ...patch }));
+
   const loadClients = useCallback(async () => {
     try {
       if (!isSupabaseConfigured) {
-        // Fall back to mock
         setClients(mockClients.map(c => {
           const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
           const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
@@ -92,12 +170,18 @@ const AdminClients: React.FC = () => {
         }));
         return;
       }
-      const { data } = await supabase
+      const { data, error: fetchErr } = await supabase
         .from("clients")
         .select("*, manager:profiles!account_manager_id(first_name, last_name)")
         .neq("status", "archived")
         .order("company_name");
-      setClients((data ?? []) as ClientRow[]);
+      if (fetchErr) throw fetchErr;
+      // Normalize the join result (Supabase returns FK joins as arrays)
+      const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
+        ...(r as Omit<ClientRow, "manager">),
+        manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
+      }));
+      setClients(rows);
     } catch (err) {
       console.error("Clients load error:", err);
     } finally {
@@ -107,7 +191,10 @@ const AdminClients: React.FC = () => {
 
   const loadManagers = useCallback(async () => {
     if (!isSupabaseConfigured) return;
-    const { data } = await supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("role", ["admin", "manager"]);
     setManagers((data ?? []) as Manager[]);
   }, []);
 
@@ -116,38 +203,59 @@ const AdminClients: React.FC = () => {
   const openAdd = () => { setForm(emptyForm); setError(""); setShowAddDialog(true); };
   const openEdit = (c: ClientRow) => {
     setEditClient(c);
-    setForm({ company_name: c.company_name, primary_contact_name: c.primary_contact_name,
+    setForm({
+      company_name: c.company_name, primary_contact_name: c.primary_contact_name,
       primary_contact_email: c.primary_contact_email, phone: c.phone ?? "",
-      status: c.status, account_manager_id: c.account_manager_id ?? "" });
+      status: c.status, account_manager_id: c.account_manager_id ?? UNASSIGNED,
+    });
     setError("");
   };
 
   const handleCreate = async () => {
-    if (!form.company_name || !form.primary_contact_name) { setError("Company name and contact name are required."); return; }
-    setSubmitting(true); setError("");
+    if (!form.company_name || !form.primary_contact_name) {
+      setError("Company name and contact name are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
     const { error: err } = await supabase.from("clients").insert({
-      company_name: form.company_name, primary_contact_name: form.primary_contact_name,
+      company_name: form.company_name,
+      primary_contact_name: form.primary_contact_name,
       primary_contact_email: form.primary_contact_email || null,
-      phone: form.phone || null, status: form.status,
-      account_manager_id: form.account_manager_id || null,
+      phone: form.phone || null,
+      status: form.status,
+      account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
     });
     setSubmitting(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      setError(err.message);
+      return;
+    }
     setShowAddDialog(false);
     loadClients();
   };
 
   const handleUpdate = async () => {
     if (!editClient) return;
-    setSubmitting(true); setError("");
+    if (!form.company_name || !form.primary_contact_name) {
+      setError("Company name and contact name are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
     const { error: err } = await supabase.from("clients").update({
-      company_name: form.company_name, primary_contact_name: form.primary_contact_name,
+      company_name: form.company_name,
+      primary_contact_name: form.primary_contact_name,
       primary_contact_email: form.primary_contact_email || null,
-      phone: form.phone || null, status: form.status,
-      account_manager_id: form.account_manager_id || null,
+      phone: form.phone || null,
+      status: form.status,
+      account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
     }).eq("id", editClient.id);
     setSubmitting(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      setError(err.message);
+      return;
+    }
     setEditClient(null);
     loadClients();
   };
@@ -158,57 +266,8 @@ const AdminClients: React.FC = () => {
   };
 
   const filteredClients = clients.filter(c =>
-    c.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.primary_contact_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const ClientFormFields = () => (
-    <div className="space-y-3 py-2">
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Company Name *</label>
-        <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="Acme Corp" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Contact Name *</label>
-          <Input value={form.primary_contact_name} onChange={e => setForm(f => ({ ...f, primary_contact_name: e.target.value }))} placeholder="Jane Doe" />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Contact Email</label>
-          <Input type="email" value={form.primary_contact_email} onChange={e => setForm(f => ({ ...f, primary_contact_email: e.target.value }))} placeholder="jane@company.com" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Phone</label>
-          <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+1 555 000 0000" />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Status</label>
-          <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v as ClientStatus }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(["lead","onboarding","active","waiting_on_client","completed","archived"] as ClientStatus[]).map(s => (
-                <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Account Manager</label>
-        <Select value={form.account_manager_id} onValueChange={v => setForm(f => ({ ...f, account_manager_id: v }))}>
-          <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Unassigned</SelectItem>
-            {managers.map(m => (
-              <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
+    (c.company_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.primary_contact_name ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -228,7 +287,12 @@ const AdminClients: React.FC = () => {
           <div className="flex items-center gap-2">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search clients..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 h-9" />
+              <Input
+                placeholder="Search clients..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-9 h-9"
+              />
             </div>
             <Button variant="outline" size="sm" className="h-9 gap-2">
               <Filter className="h-3.5 w-3.5" /> Filter
@@ -238,6 +302,10 @@ const AdminClients: React.FC = () => {
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : filteredClients.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              {searchQuery ? "No clients match your search." : "No clients yet — add one to get started."}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -252,7 +320,11 @@ const AdminClients: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {filteredClients.map(client => (
-                  <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/clients/${client.id}`)}>
+                  <TableRow
+                    key={client.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/admin/clients/${client.id}`)}
+                  >
                     <TableCell className="pl-6">
                       <div>
                         <p className="font-medium text-foreground">{client.company_name}</p>
@@ -266,12 +338,12 @@ const AdminClients: React.FC = () => {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
-                            <Badge className={`text-[10px] font-medium ${statusColors[client.status]}`}>
+                            <Badge className={`text-[10px] font-medium ${statusColors[client.status] ?? ""}`}>
                               {client.status.replace("_", " ")}
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p className="text-xs">{statusLabels[client.status]}</p>
+                            <p className="text-xs">{statusLabels[client.status] ?? client.status}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -281,7 +353,9 @@ const AdminClients: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm text-muted-foreground">
-                        {client.manager ? `${client.manager.first_name} ${client.manager.last_name}` : "—"}
+                        {client.manager
+                          ? `${client.manager.first_name} ${client.manager.last_name}`
+                          : "—"}
                       </p>
                     </TableCell>
                     <TableCell className="text-right pr-6" onClick={e => e.stopPropagation()}>
@@ -297,7 +371,10 @@ const AdminClients: React.FC = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openEdit(client)}>Edit</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-muted-foreground" onClick={() => handleArchive(client)}>
+                          <DropdownMenuItem
+                            className="text-muted-foreground"
+                            onClick={() => handleArchive(client)}
+                          >
                             Archive
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -312,13 +389,15 @@ const AdminClients: React.FC = () => {
       </Card>
 
       {/* Add Client Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Add New Client</DialogTitle></DialogHeader>
-          <ClientFormFields />
+          <ClientFormFields form={form} onChange={patchForm} managers={managers} error={error} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={submitting}>{submitting ? "Creating…" : "Create Client"}</Button>
+            <Button onClick={handleCreate} disabled={submitting}>
+              {submitting ? "Creating…" : "Create Client"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -327,10 +406,12 @@ const AdminClients: React.FC = () => {
       <Dialog open={!!editClient} onOpenChange={v => { if (!v) setEditClient(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
-          <ClientFormFields />
+          <ClientFormFields form={form} onChange={patchForm} managers={managers} error={error} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditClient(null)}>Cancel</Button>
-            <Button onClick={handleUpdate} disabled={submitting}>{submitting ? "Saving…" : "Save Changes"}</Button>
+            <Button onClick={handleUpdate} disabled={submitting}>
+              {submitting ? "Saving…" : "Save Changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
