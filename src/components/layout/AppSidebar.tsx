@@ -114,21 +114,23 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         {!collapsed && (
           <div className="space-y-3">
-            {/* Role switcher for dev */}
-            <div className="flex gap-1 flex-wrap">
-              {(["client", "admin", "manager"] as const).map((role) => (
-                <button
-                  key={role}
-                  onClick={() => switchRole(role)}
-                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${user?.role === role
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "bg-sidebar-accent text-sidebar-muted hover:text-sidebar-foreground"
-                    }`}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
+            {/* Role switcher — dev only, never shown in production */}
+            {import.meta.env.DEV && (
+              <div className="flex gap-1 flex-wrap">
+                {(["client", "admin", "manager"] as const).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => switchRole(role)}
+                    className={`text-[10px] px-2 py-1 rounded-md transition-colors ${user?.role === role
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "bg-sidebar-accent text-sidebar-muted hover:text-sidebar-foreground"
+                      }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* User info */}
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium text-sidebar-foreground">

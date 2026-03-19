@@ -46,18 +46,39 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      if (!isSupabaseConfigured) {
-        const rows: ClientRow[] = mockClients.map(c => {
-          const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
-          const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
-          const cur = phases.find(ph => ph.status === "current");
-          const mgr = getUserById(c.accountManagerId);
-          return {
-            id: c.id, company_name: c.companyName, primary_contact_name: c.primaryContactName,
-            status: c.status as ClientStatus, package: pm?.projectName, currentPhase: cur?.name,
-            manager: mgr ? { first_name: mgr.firstName, last_name: mgr.lastName } : null,
-          };
-        });
+      try {
+        if (!isSupabaseConfigured) {
+          const rows: ClientRow[] = mockClients.map(c => {
+            const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
+            const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
+            const cur = phases.find(ph => ph.status === "current");
+            const mgr = getUserById(c.accountManagerId);
+            return {
+              id: c.id, company_name: c.companyName, primary_contact_name: c.primaryContactName,
+              status: c.status as ClientStatus, package: pm?.projectName, currentPhase: cur?.name,
+              manager: mgr ? { first_name: mgr.firstName, last_name: mgr.lastName } : null,
+            };
+          });
+          setClients(rows);
+          setStats({
+            total: rows.length,
+            active: rows.filter(r => r.status === "active").length,
+            onboarding: rows.filter(r => r.status === "onboarding").length,
+            waiting: rows.filter(r => r.status === "waiting_on_client").length,
+          });
+          return;
+        }
+
+        const { data } = await supabase
+          .from("clients")
+          .select("id, company_name, primary_contact_name, status, manager:profiles!account_manager_id(first_name, last_name)")
+          .order("company_name");
+
+        // Supabase returns the joined relation as an array; normalize to object | null
+        const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
+          ...(r as Omit<ClientRow, "manager">),
+          manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
+        }));
         setClients(rows);
         setStats({
           total: rows.length,
@@ -65,24 +86,11 @@ const AdminDashboard: React.FC = () => {
           onboarding: rows.filter(r => r.status === "onboarding").length,
           waiting: rows.filter(r => r.status === "waiting_on_client").length,
         });
+      } catch (err) {
+        console.error("Dashboard load error:", err);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data } = await supabase
-        .from("clients")
-        .select("id, company_name, primary_contact_name, status, manager:profiles!account_manager_id(first_name, last_name)")
-        .order("company_name");
-
-      const rows = (data ?? []) as ClientRow[];
-      setClients(rows);
-      setStats({
-        total: rows.length,
-        active: rows.filter(r => r.status === "active").length,
-        onboarding: rows.filter(r => r.status === "onboarding").length,
-        waiting: rows.filter(r => r.status === "waiting_on_client").length,
-      });
-      setLoading(false);
     };
     load();
   }, []);

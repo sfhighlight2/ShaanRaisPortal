@@ -74,31 +74,35 @@ const AdminClients: React.FC = () => {
   const [error, setError] = useState("");
 
   const loadClients = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      // Fall back to mock
-      setClients(mockClients.map(c => {
-        const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
-        const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
-        const cur = phases.find(ph => ph.status === "current");
-        const mgr = getUserById(c.accountManagerId);
-        return {
-          id: c.id, company_name: c.companyName, primary_contact_name: c.primaryContactName,
-          primary_contact_email: c.primaryContactEmail, phone: null, status: c.status as ClientStatus,
-          account_manager_id: c.accountManagerId, package: pm?.projectName,
-          currentPhase: cur?.name,
-          manager: mgr ? { first_name: mgr.firstName, last_name: mgr.lastName } : null,
-        };
-      }));
+    try {
+      if (!isSupabaseConfigured) {
+        // Fall back to mock
+        setClients(mockClients.map(c => {
+          const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
+          const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
+          const cur = phases.find(ph => ph.status === "current");
+          const mgr = getUserById(c.accountManagerId);
+          return {
+            id: c.id, company_name: c.companyName, primary_contact_name: c.primaryContactName,
+            primary_contact_email: c.primaryContactEmail, phone: null, status: c.status as ClientStatus,
+            account_manager_id: c.accountManagerId, package: pm?.projectName,
+            currentPhase: cur?.name,
+            manager: mgr ? { first_name: mgr.firstName, last_name: mgr.lastName } : null,
+          };
+        }));
+        return;
+      }
+      const { data } = await supabase
+        .from("clients")
+        .select("*, manager:profiles!account_manager_id(first_name, last_name)")
+        .neq("status", "archived")
+        .order("company_name");
+      setClients((data ?? []) as ClientRow[]);
+    } catch (err) {
+      console.error("Clients load error:", err);
+    } finally {
       setLoading(false);
-      return;
     }
-    const { data } = await supabase
-      .from("clients")
-      .select("*, manager:profiles!account_manager_id(first_name, last_name)")
-      .neq("status", "archived")
-      .order("company_name");
-    setClients((data ?? []) as ClientRow[]);
-    setLoading(false);
   }, []);
 
   const loadManagers = useCallback(async () => {

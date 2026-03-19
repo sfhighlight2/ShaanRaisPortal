@@ -52,21 +52,25 @@ const AdminTeam: React.FC = () => {
   const [error, setError] = useState("");
 
   const loadMembers = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setMembers(mockUsers.filter(u => u.role !== "client").map(u => ({
-        id: u.id, first_name: u.firstName, last_name: u.lastName,
-        email: u.email, role: u.role as UserRole, status: u.status,
-      })));
+    try {
+      if (!isSupabaseConfigured) {
+        setMembers(mockUsers.filter(u => u.role !== "client").map(u => ({
+          id: u.id, first_name: u.firstName, last_name: u.lastName,
+          email: u.email, role: u.role as UserRole, status: u.status,
+        })));
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .neq("role", "client")
+        .order("first_name");
+      setMembers((data as TeamProfile[]) ?? []);
+    } catch (err) {
+      console.error("Team load error:", err);
+    } finally {
       setLoading(false);
-      return;
     }
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .neq("role", "client")
-      .order("first_name");
-    setMembers((data as TeamProfile[]) ?? []);
-    setLoading(false);
   }, []);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);

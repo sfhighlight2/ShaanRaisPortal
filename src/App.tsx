@@ -41,6 +41,7 @@ function AppRoutes() {
   if (!isAuthenticated) {
     return (
       <Routes>
+        <Route path="/login" element={<Login />} />
         <Route path="*" element={<Login />} />
       </Routes>
     );
@@ -81,6 +82,9 @@ function AppRoutes() {
         <Route path="/admin/resources" element={<AdminResources />} />
         <Route path="/admin/onboarding-management" element={<AdminOnboardingManagement />} />
         <Route path="/admin/resources-management" element={<AdminResourcesManagement />} />
+
+        {/* Authenticated users visiting /login get sent home */}
+        <Route path="/login" element={<Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
 
         {/* Root redirect based on role */}
         <Route

@@ -48,38 +48,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // Track whether the initial session check is still in progress so that the
+    // INITIAL_SESSION event fired by onAuthStateChange doesn't duplicate the work.
+    let initDone = false;
+
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        // Try to find profile by auth user id, then by email (for seeded profiles)
-        let profile = await fetchProfile(session.user.id);
-        if (!profile) {
-          // Fallback: look up by email (seeded profile with placeholder id)
-          const { data } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", session.user.email)
-            .single();
-          if (data) {
-            profile = {
-              id: data.id,
-              firstName: data.first_name,
-              lastName: data.last_name,
-              email: data.email,
-              role: data.role as UserRole,
-              profilePhoto: data.profile_photo ?? undefined,
-              status: data.status,
-              createdAt: data.created_at,
-            };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          let profile = await fetchProfile(session.user.id);
+          if (!profile) {
+            const { data } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("email", session.user.email)
+              .single();
+            if (data) {
+              profile = {
+                id: data.id,
+                firstName: data.first_name,
+                lastName: data.last_name,
+                email: data.email,
+                role: data.role as UserRole,
+                profilePhoto: data.profile_photo ?? undefined,
+                status: data.status,
+                createdAt: data.created_at,
+              };
+            }
           }
+          setUser(profile);
         }
-        setUser(profile);
+      } catch (err) {
+        console.error("Auth init error:", err);
+      } finally {
+        initDone = true;
+        setLoading(false);
       }
-      setLoading(false);
     };
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip the synthetic INITIAL_SESSION event — init() handles that.
+      if (event === "INITIAL_SESSION") return;
+      // Also skip if init() hasn't completed yet; it will set the user itself.
+      if (!initDone && event === "SIGNED_IN") return;
+
       if (session?.user) {
         let profile = await fetchProfile(session.user.id);
         if (!profile) {
