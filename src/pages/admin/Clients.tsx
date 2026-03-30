@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MoreHorizontal, Plus, Eye, Trash2 } from "lucide-react";
+import { Search, Filter, MoreHorizontal, Plus, Eye, Trash2, LayoutGrid, List } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -159,15 +159,28 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
 );
 // ─────────────────────────────────────────────────────────────────────────────
 
+const KANBAN_STATUSES: ClientStatus[] = ["lead", "onboarding", "active", "waiting_on_client", "completed"];
+
+const kanbanColumnStyles: Record<ClientStatus, { header: string; card: string; dot: string }> = {
+  lead:              { header: "bg-muted/60 border-border",             card: "border-border",            dot: "bg-muted-foreground" },
+  onboarding:        { header: "bg-warning/10 border-warning/30",       card: "border-warning/20",        dot: "bg-warning" },
+  active:            { header: "bg-success/10 border-success/30",       card: "border-success/20",        dot: "bg-success" },
+  waiting_on_client: { header: "bg-destructive/10 border-destructive/30", card: "border-destructive/20", dot: "bg-destructive" },
+  completed:         { header: "bg-primary/10 border-primary/30",       card: "border-primary/20",        dot: "bg-primary" },
+  archived:          { header: "bg-muted/60 border-border",             card: "border-border",            dot: "bg-muted-foreground" },
+};
+
 const AdminClients: React.FC = () => {
   const navigate = useNavigate();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editClient, setEditClient] = useState<ClientRow | null>(null);
   const [deleteClient, setDeleteClient] = useState<ClientRow | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ClientStatus | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -285,6 +298,31 @@ const AdminClients: React.FC = () => {
     loadClients();
   };
 
+  const handleStatusChange = async (clientId: string, newStatus: ClientStatus) => {
+    // Optimistic update
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, status: newStatus } : c));
+    const { error } = await supabase.from("clients").update({ status: newStatus }).eq("id", clientId);
+    if (error) {
+      console.error("Status update failed:", error);
+      loadClients(); // revert on error
+    }
+  };
+
+  // Drag handlers
+  const onDragStart = (e: React.DragEvent, clientId: string) => {
+    e.dataTransfer.setData("clientId", clientId);
+  };
+  const onDragOver = (e: React.DragEvent, status: ClientStatus) => {
+    e.preventDefault();
+    setDragOverCol(status);
+  };
+  const onDrop = (e: React.DragEvent, status: ClientStatus) => {
+    e.preventDefault();
+    setDragOverCol(null);
+    const clientId = e.dataTransfer.getData("clientId");
+    if (clientId) handleStatusChange(clientId, status);
+  };
+
   const filteredClients = clients.filter(c =>
     (c.company_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     (c.primary_contact_name ?? "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -302,23 +340,44 @@ const AdminClients: React.FC = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search clients..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-9 h-9"
-              />
-            </div>
-            <Button variant="outline" size="sm" className="h-9 gap-2">
-              <Filter className="h-3.5 w-3.5" /> Filter
-            </Button>
-          </div>
-        </CardHeader>
+      {/* Toolbar: search + view toggle */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search clients..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+        {/* View Toggle */}
+        <div className="flex items-center border border-border rounded-md overflow-hidden">
+          <button
+            onClick={() => setViewMode("table")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
+              viewMode === "table"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <List className="h-4 w-4" /> Table
+          </button>
+          <button
+            onClick={() => setViewMode("kanban")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
+              viewMode === "kanban"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <LayoutGrid className="h-4 w-4" /> Kanban
+          </button>
+        </div>
+      </div>
+
+      {/* ── TABLE VIEW ── */}
+      {viewMode === "table" && <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -414,7 +473,106 @@ const AdminClients: React.FC = () => {
             </Table>
           )}
         </CardContent>
-      </Card>
+      </Card>}
+
+      {/* ── KANBAN VIEW ── */}
+      {viewMode === "kanban" && (
+        <div className="overflow-x-auto pb-4">
+          {loading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : (
+            <div className="flex gap-4 min-w-max">
+              {KANBAN_STATUSES.map(status => {
+                const colClients = filteredClients.filter(c => c.status === status);
+                const styles = kanbanColumnStyles[status];
+                const isOver = dragOverCol === status;
+                return (
+                  <div
+                    key={status}
+                    className={`w-64 flex-shrink-0 rounded-xl border-2 transition-colors ${
+                      isOver ? "border-primary/60 bg-primary/5" : styles.header
+                    }`}
+                    onDragOver={e => onDragOver(e, status)}
+                    onDragLeave={() => setDragOverCol(null)}
+                    onDrop={e => onDrop(e, status)}
+                  >
+                    {/* Column Header */}
+                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-inherit">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${styles.dot}`} />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                          {status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-medium">{colClients.length}</span>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="p-2 space-y-2 min-h-[120px]">
+                      {colClients.length === 0 && (
+                        <div className="py-6 text-center text-xs text-muted-foreground">
+                          Drop clients here
+                        </div>
+                      )}
+                      {colClients.map(client => (
+                        <div
+                          key={client.id}
+                          draggable
+                          onDragStart={e => onDragStart(e, client.id)}
+                          className={`group bg-background rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${styles.card}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{client.company_name}</p>
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">{client.primary_contact_name}</p>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-0.5 rounded">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="text-xs">
+                                <DropdownMenuItem onClick={() => navigate(`/admin/clients/${client.id}`)}>
+                                  <Eye className="h-3.5 w-3.5 mr-2" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEdit(client)}>Edit</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-muted-foreground" onClick={() => handleArchive(client)}>Archive</DropdownMenuItem>
+                                {user?.role === "admin" && (
+                                  <DropdownMenuItem className="text-destructive" onClick={() => setDeleteClient(client)}>
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          {client.manager && (
+                            <p className="text-[10px] text-muted-foreground mt-2">
+                              {client.manager.first_name} {client.manager.last_name}
+                            </p>
+                          )}
+                          {/* Move to status select */}
+                          <select
+                            value={client.status}
+                            onChange={e => handleStatusChange(client.id, e.target.value as ClientStatus)}
+                            onClick={e => e.stopPropagation()}
+                            className="mt-2 w-full text-[10px] bg-muted border-0 rounded px-1.5 py-1 text-muted-foreground cursor-pointer"
+                          >
+                            {KANBAN_STATUSES.map(s => (
+                              <option key={s} value={s}>{s.replace("_", " ")}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Client Dialog */}
       <Dialog open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
