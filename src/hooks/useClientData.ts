@@ -176,6 +176,8 @@ export function useClientData() {
             title: d.title,
             description: d.description,
             fileUrl: d.file_url,
+            status: d.status || 'pending',
+            completedAt: d.completed_at,
             visibleToClient: d.visible_to_client,
             uploadedBy: d.uploaded_by,
             uploadedAt: d.uploaded_at,

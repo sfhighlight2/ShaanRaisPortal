@@ -90,6 +90,8 @@ export interface Deliverable {
   title: string;
   description?: string;
   fileUrl?: string;
+  status: string;
+  completedAt?: string;
   visibleToClient: boolean;
   uploadedBy?: string;
   uploadedAt?: string;

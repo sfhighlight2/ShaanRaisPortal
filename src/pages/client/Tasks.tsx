@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  CheckCircle, Clock,
+  CheckCircle, Clock, Lock,
   ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useClientData } from "@/hooks/useClientData";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import type { TaskType } from "@/lib/types";
 
 const taskTypeIcons: Record<string, React.ElementType> = {
   form: ClipboardList,
@@ -35,6 +35,7 @@ const ClientTasks: React.FC = () => {
   const [activeTab, setActiveTab] = useState("pending");
   const [completing, setCompleting] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { phases, tasks, loading, refetch } = useClientData();
 
@@ -46,7 +47,7 @@ const ClientTasks: React.FC = () => {
     );
   }
 
-  // Sort tasks by phase sort_order first, then by task sort_order within the phase
+  // Sort tasks by phase sort_order, then task sort_order within the phase
   const allTasks = tasks
     .map(t => {
       const phase = phases.find(p => p.id === t.phaseId);
@@ -54,7 +55,6 @@ const ClientTasks: React.FC = () => {
         ...t,
         phaseName: phase?.name || "Unknown Phase",
         phaseSortOrder: phase?.sortOrder ?? 9999,
-        phaseStatus: phase?.status || "upcoming",
       };
     })
     .sort((a, b) => {
@@ -66,8 +66,19 @@ const ClientTasks: React.FC = () => {
   const completedTasks = allTasks.filter(t => t.status === "completed");
   const displayTasks = activeTab === "pending" ? pendingTasks : completedTasks;
 
-  const handleComplete = async (e: React.MouseEvent, taskId: string, taskTitle: string) => {
+  // Sequential locking: a task is locked if the task before it in the pending list is not completed
+  // Find the index of each pending task in allTasks to determine if the previous one is done
+  const firstPendingIndex = allTasks.findIndex(t => t.status !== "completed");
+
+  const isTaskUnlocked = (task: typeof allTasks[0]): boolean => {
+    const idx = allTasks.indexOf(task);
+    if (idx === 0) return true;
+    return allTasks[idx - 1].status === "completed";
+  };
+
+  const handleComplete = async (e: React.MouseEvent, taskId: string, taskTitle: string, locked: boolean) => {
     e.stopPropagation();
+    if (locked) return;
     setCompleting(taskId);
     try {
       const { error } = await supabase
@@ -91,7 +102,7 @@ const ClientTasks: React.FC = () => {
       <div>
         <h1 className="text-2xl font-heading font-semibold text-foreground">My Tasks</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Complete these tasks to keep your project moving forward.
+          Complete tasks in order to keep your project moving forward.
         </p>
       </div>
 
@@ -153,6 +164,8 @@ const ClientTasks: React.FC = () => {
               displayTasks.map((task, i) => {
                 const Icon = taskTypeIcons[task.taskType] || ClipboardList;
                 const isCompleted = task.status === "completed";
+                const locked = !isCompleted && !isTaskUnlocked(task);
+
                 return (
                   <motion.div
                     key={task.id}
@@ -160,19 +173,21 @@ const ClientTasks: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
                   >
-                    <Card className={`transition-all duration-200 ${isCompleted ? "opacity-70" : "hover:border-primary/30 hover:shadow-md"}`}>
+                    <Card className={`transition-all duration-200 ${locked ? "opacity-45" : isCompleted ? "opacity-70" : "hover:border-primary/30 hover:shadow-md"}`}>
                       <CardContent className="p-4 flex items-center gap-4">
                         <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                          isCompleted ? "bg-success/10" : "bg-muted"
+                          isCompleted ? "bg-success/10" : locked ? "bg-muted/50" : "bg-muted"
                         }`}>
                           {isCompleted ? (
                             <CheckCircle className="h-5 w-5 text-success" />
+                          ) : locked ? (
+                            <Lock className="h-5 w-5 text-muted-foreground/50" />
                           ) : (
                             <Icon className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-medium ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                          <p className={`font-medium ${isCompleted ? "line-through text-muted-foreground" : locked ? "text-muted-foreground" : "text-foreground"}`}>
                             {task.title}
                           </p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -182,6 +197,11 @@ const ClientTasks: React.FC = () => {
                             <Badge variant="outline" className="text-[10px]">
                               {taskTypeLabels[task.taskType] || task.taskType}
                             </Badge>
+                            {locked && (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                Complete previous task first
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         {isCompleted ? (
@@ -194,8 +214,8 @@ const ClientTasks: React.FC = () => {
                           <Button
                             size="sm"
                             className="gap-1.5 shrink-0"
-                            disabled={completing === task.id}
-                            onClick={(e) => handleComplete(e, task.id, task.title)}
+                            disabled={locked || completing === task.id}
+                            onClick={(e) => handleComplete(e, task.id, task.title, locked)}
                           >
                             {completing === task.id ? (
                               <span className="flex items-center gap-1.5">
