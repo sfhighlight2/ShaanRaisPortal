@@ -60,12 +60,14 @@ interface ClientRow {
 }
 
 interface Manager { id: string; first_name: string; last_name: string; }
+interface PackageTemplate { id: string; name: string; }
 
 const UNASSIGNED = "__unassigned__";
 
 const emptyForm = {
   company_name: "", primary_contact_name: "", primary_contact_email: "",
-  phone: "", google_drive_url: "", airtable_url: "", status: "lead" as ClientStatus, account_manager_id: UNASSIGNED,
+  phone: "", google_drive_url: "", airtable_url: "", status: "lead" as ClientStatus,
+  account_manager_id: UNASSIGNED, package_template_id: UNASSIGNED,
 };
 
 // ── Standalone form component (NOT defined inside AdminClients) ──────────────
@@ -73,10 +75,11 @@ interface ClientFormProps {
   form: typeof emptyForm;
   onChange: (patch: Partial<typeof emptyForm>) => void;
   managers: Manager[];
+  templates: PackageTemplate[];
   error: string;
 }
 
-const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers, error }) => (
+const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers, templates, error }) => (
   <div className="space-y-3 py-2">
     <div className="space-y-1.5">
       <label className="text-sm font-medium">Company Name *</label>
@@ -143,6 +146,18 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
       </div>
     </div>
     <div className="space-y-1.5">
+      <label className="text-sm font-medium">Package Template</label>
+      <Select value={form.package_template_id} onValueChange={v => onChange({ package_template_id: v })}>
+        <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={UNASSIGNED}>None</SelectItem>
+          {templates.map(t => (
+            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+    <div className="space-y-1.5">
       <label className="text-sm font-medium">Account Manager</label>
       <Select value={form.account_manager_id} onValueChange={v => onChange({ account_manager_id: v })}>
         <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
@@ -174,6 +189,7 @@ const AdminClients: React.FC = () => {
   const navigate = useNavigate();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
+  const [templates, setTemplates] = useState<PackageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
@@ -218,7 +234,12 @@ const AdminClients: React.FC = () => {
     setManagers((data ?? []) as Manager[]);
   }, []);
 
-  useEffect(() => { loadClients(); loadManagers(); }, [loadClients, loadManagers]);
+  const loadTemplates = useCallback(async () => {
+    const { data } = await supabase.from("package_templates").select("id, name").order("name");
+    setTemplates((data ?? []) as PackageTemplate[]);
+  }, []);
+
+  useEffect(() => { loadClients(); loadManagers(); loadTemplates(); }, [loadClients, loadManagers, loadTemplates]);
 
   const openAdd = () => { setForm(emptyForm); setError(""); setShowAddDialog(true); };
   const openEdit = (c: ClientRow) => {
@@ -228,6 +249,7 @@ const AdminClients: React.FC = () => {
       primary_contact_email: c.primary_contact_email, phone: c.phone ?? "",
       google_drive_url: c.google_drive_url ?? "", airtable_url: c.airtable_url ?? "",
       status: c.status, account_manager_id: c.account_manager_id ?? UNASSIGNED,
+      package_template_id: (c as any).package_template_id ?? UNASSIGNED,
     });
     setError("");
   };
@@ -248,6 +270,7 @@ const AdminClients: React.FC = () => {
       airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
+      package_template_id: form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null),
     });
     setSubmitting(false);
     if (err) {
@@ -275,6 +298,7 @@ const AdminClients: React.FC = () => {
       airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
+      package_template_id: form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null),
     }).eq("id", editClient.id);
     setSubmitting(false);
     if (err) {
@@ -578,7 +602,7 @@ const AdminClients: React.FC = () => {
       <Dialog open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Add New Client</DialogTitle></DialogHeader>
-          <ClientFormFields form={form} onChange={patchForm} managers={managers} error={error} />
+          <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={submitting}>
@@ -592,7 +616,7 @@ const AdminClients: React.FC = () => {
       <Dialog open={!!editClient} onOpenChange={v => { if (!v) setEditClient(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
-          <ClientFormFields form={form} onChange={patchForm} managers={managers} error={error} />
+          <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditClient(null)}>Cancel</Button>
             <Button onClick={handleUpdate} disabled={submitting}>

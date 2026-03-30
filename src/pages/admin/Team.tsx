@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, MoreHorizontal, Mail, Shield, X } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Shield, X, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,7 @@ const AdminTeam: React.FC = () => {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   const loadMembers = useCallback(async () => {
     try {
@@ -111,13 +112,24 @@ const AdminTeam: React.FC = () => {
 
   const handleDelete = async () => {
     if (!deleteMember) return;
+    setDeleteError("");
     const { data: { session } } = await supabase.auth.getSession();
-    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+    if (!session?.access_token) {
+      setDeleteError("No active session. Please sign out and sign in again.");
+      return;
+    }
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ action: "delete", user_id: deleteMember.id }),
     });
+    const json = await res.json();
+    if (json.error) {
+      setDeleteError(json.error);
+      return;
+    }
     setDeleteMember(null);
+    setDeleteError("");
     loadMembers();
   };
 
@@ -356,7 +368,7 @@ const AdminTeam: React.FC = () => {
       </Dialog>
 
       {/* Delete Confirm Dialog */}
-      <AlertDialog open={!!deleteMember} onOpenChange={v => { if (!v) setDeleteMember(null); }}>
+      <AlertDialog open={!!deleteMember} onOpenChange={v => { if (!v) { setDeleteMember(null); setDeleteError(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete team member?</AlertDialogTitle>
@@ -364,8 +376,14 @@ const AdminTeam: React.FC = () => {
               This will permanently delete {deleteMember?.first_name} {deleteMember?.last_name}'s account and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteError && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{deleteError}</span>
+            </div>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeleteError("")}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
