@@ -63,7 +63,14 @@ const AdminTemplates: React.FC = () => {
     try {
       const { data, error: err } = await supabase
         .from("package_templates")
-        .select("*")
+        .select(`
+          *,
+          phases:template_phases(
+            *,
+            tasks:template_tasks(*),
+            deliverables:template_deliverables(*)
+          )
+        `)
         .order("created_at", { ascending: false });
       
       if (err) throw err;
