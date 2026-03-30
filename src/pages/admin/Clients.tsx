@@ -211,13 +211,14 @@ const AdminClients: React.FC = () => {
     try {
       const { data, error: fetchErr } = await supabase
         .from("clients")
-        .select("*, manager:profiles!account_manager_id(first_name, last_name)")
+        .select("*, manager:profiles!account_manager_id(first_name, last_name), package:package_templates!package_template_id(name)")
         .neq("status", "archived")
         .order("company_name");
       if (fetchErr) throw fetchErr;
       const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
         ...(r as Omit<ClientRow, "manager">),
         manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
+        _packageName: (r.package as any)?.name || null,
       }));
       setClients(rows);
     } catch (err) {
@@ -481,7 +482,7 @@ const AdminClients: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm text-muted-foreground">{client.package ?? "—"}</p>
+                      <p className="text-sm text-muted-foreground">{(client as any)._packageName ?? "—"}</p>
                     </TableCell>
                     <TableCell>
                       <TooltipProvider>
