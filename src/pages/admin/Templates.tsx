@@ -15,6 +15,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import type { TaskType, PackageTemplate } from "@/lib/types";
 
 const taskTypeIcons: Record<string, React.ElementType> = {
@@ -30,6 +31,7 @@ const emptyForm = { name: "", description: "" };
 
 const AdminTemplates: React.FC = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const isAdmin = user?.role === "admin";
   const [templates, setTemplates] = useState<PackageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,7 +162,7 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
-  // Phase CRUD
+// Phase CRUD
   const openPhaseDialog = (templateId: string, phase?: any) => {
     if (phase) {
       setEditPhase(phase);
@@ -181,13 +183,26 @@ const AdminTemplates: React.FC = () => {
           template_id: phaseForm.templateId, name: phaseForm.name, estimated_timeline: phaseForm.estimatedTimeline,
           sort_order: (templates.find(t => t.id === phaseForm.templateId)?.phases?.length || 0) + 1
         });
-    if (!error) { setShowPhaseDialog(false); loadTemplates(); }
+    if (!error) { 
+      toast({ title: "Saved", description: isUpdate ? "Phase updated." : "Phase added." });
+      setShowPhaseDialog(false); 
+      loadTemplates(); 
+    } else {
+      console.error(error);
+      toast({ title: "Error Saving Phase", description: error.message, variant: "destructive" });
+    }
   };
 
   const deletePhase = async (id: string) => {
     if (!confirm("Delete phase?")) return;
     const { error } = await supabase.from("template_phases").delete().eq("id", id);
-    if (!error) loadTemplates();
+    if (!error) {
+      toast({ title: "Deleted", description: "Phase deleted." });
+      loadTemplates();
+    } else {
+      console.error(error);
+      toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
+    }
   };
 
   // Task CRUD
@@ -207,13 +222,26 @@ const AdminTemplates: React.FC = () => {
     const { error } = editTask
       ? await supabase.from("template_tasks").update({ title: taskForm.title, task_type: taskForm.taskType }).eq("id", editTask.id)
       : await supabase.from("template_tasks").insert({ phase_id: taskForm.phaseId, title: taskForm.title, task_type: taskForm.taskType, sort_order: 1 });
-    if (!error) { setShowTaskDialog(false); loadTemplates(); }
+    if (!error) { 
+      toast({ title: "Saved", description: editTask ? "Task updated." : "Task added." });
+      setShowTaskDialog(false); 
+      loadTemplates(); 
+    } else {
+      console.error(error);
+      toast({ title: "Error Saving Task", description: error.message, variant: "destructive" });
+    }
   };
 
   const deleteTask = async (id: string) => {
     if (!confirm("Delete task?")) return;
-    await supabase.from("template_tasks").delete().eq("id", id);
-    loadTemplates();
+    const { error } = await supabase.from("template_tasks").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Deleted", description: "Task deleted." });
+      loadTemplates();
+    } else {
+      console.error(error);
+      toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
+    }
   };
 
   // Deliverable CRUD
@@ -233,13 +261,26 @@ const AdminTemplates: React.FC = () => {
     const { error } = editDeliv
       ? await supabase.from("template_deliverables").update({ title: delivForm.title, visible_to_client: delivForm.visibleToClient }).eq("id", editDeliv.id)
       : await supabase.from("template_deliverables").insert({ phase_id: delivForm.phaseId, title: delivForm.title, visible_to_client: delivForm.visibleToClient });
-    if (!error) { setShowDelivDialog(false); loadTemplates(); }
+    if (!error) { 
+      toast({ title: "Saved", description: editDeliv ? "Deliverable updated." : "Deliverable added." });
+      setShowDelivDialog(false); 
+      loadTemplates(); 
+    } else {
+      console.error(error);
+      toast({ title: "Error Saving Deliverable", description: error.message, variant: "destructive" });
+    }
   };
 
   const deleteDeliv = async (id: string) => {
     if (!confirm("Delete deliverable?")) return;
-    await supabase.from("template_deliverables").delete().eq("id", id);
-    loadTemplates();
+    const { error } = await supabase.from("template_deliverables").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Deleted", description: "Deliverable deleted." });
+      loadTemplates();
+    } else {
+      console.error(error);
+      toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
+    }
   };
 
   return (
