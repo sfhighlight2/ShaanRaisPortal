@@ -132,11 +132,12 @@ export function useClientData() {
       let formattedDeliverables: Deliverable[] = [];
       
       if (projectId) {
-        const [phasesRes, tasksRes, deliverablesRes] = await Promise.all([
-          supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order"),
-          supabase.from("tasks").select("*").eq("visible_to_client", true).order("sort_order"), // Filtering by phaseId in memory since it requires joining or multiple queries
-          supabase.from("deliverables").select("*").eq("visible_to_client", true).order("uploaded_at", { ascending: false }),
-        ]);
+        // Fetch phases first so we can filter tasks/deliverables by phase_id
+        const phasesRes = await supabase
+          .from("phases")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("sort_order");
 
         if (phasesRes.error) throw phasesRes.error;
         formattedPhases = (phasesRes.data || []).map(p => ({
@@ -148,40 +149,69 @@ export function useClientData() {
           status: p.status,
           sortOrder: p.sort_order,
         }));
-        
+
         const phaseIds = formattedPhases.map(p => p.id);
-        
-        if (tasksRes.error) throw tasksRes.error;
-        formattedTasks = (tasksRes.data || [])
-          .filter(t => phaseIds.includes(t.phase_id))
-          .map(t => ({
-            id: t.id,
-            phaseId: t.phase_id,
-            title: t.title,
-            description: t.description,
-            taskType: t.task_type,
-            status: t.status,
-            completedAt: t.completed_at,
-            assignedToUserId: t.assigned_to_user_id,
-            visibleToClient: t.visible_to_client,
-            sortOrder: t.sort_order,
-          }));
-          
-        if (deliverablesRes.error) throw deliverablesRes.error;
-        formattedDeliverables = (deliverablesRes.data || [])
-          .filter(d => phaseIds.includes(d.phase_id))
-          .map(d => ({
-            id: d.id,
-            phaseId: d.phase_id,
-            title: d.title,
-            description: d.description,
-            fileUrl: d.file_url,
-            status: d.status || 'pending',
-            completedAt: d.completed_at,
-            visibleToClient: d.visible_to_client,
-            uploadedBy: d.uploaded_by,
-            uploadedAt: d.uploaded_at,
-          }));
+
+        if (phaseIds.length > 0) {
+          // Fetch tasks and deliverables filtered by this project's phase IDs
+          const [tasksRes, deliverablesRes] = await Promise.all([
+            supabase
+              .from("tasks")
+              .select("*")
+              .in("phase_id", phaseIds)
+              .eq("visible_to_client", true)
+              .order("sort_order"),
+            supabase
+              .from("deliverables")
+              .select("*")
+              .in("phase_id", phaseIds)
+              .eq("visible_to_client", true)
+              .order("sort_order"),
+          ]);
+
+          if (tasksRes.error) throw tasksRes.error;
+          // Sort tasks by phase order first, then by task sort_order within each phase
+          const phaseOrderMap = new Map(formattedPhases.map((p, i) => [p.id, i]));
+          formattedTasks = (tasksRes.data || [])
+            .map(t => ({
+              id: t.id,
+              phaseId: t.phase_id,
+              title: t.title,
+              description: t.description,
+              taskType: t.task_type,
+              status: t.status,
+              completedAt: t.completed_at,
+              assignedToUserId: t.assigned_to_user_id,
+              visibleToClient: t.visible_to_client,
+              sortOrder: t.sort_order,
+            }))
+            .sort((a, b) => {
+              const phaseA = phaseOrderMap.get(a.phaseId) ?? 999;
+              const phaseB = phaseOrderMap.get(b.phaseId) ?? 999;
+              if (phaseA !== phaseB) return phaseA - phaseB;
+              return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+            });
+
+          if (deliverablesRes.error) throw deliverablesRes.error;
+          formattedDeliverables = (deliverablesRes.data || [])
+            .map(d => ({
+              id: d.id,
+              phaseId: d.phase_id,
+              title: d.title,
+              description: d.description,
+              fileUrl: d.file_url,
+              status: d.status || 'pending',
+              completedAt: d.completed_at,
+              visibleToClient: d.visible_to_client,
+              uploadedBy: d.uploaded_by,
+              uploadedAt: d.uploaded_at,
+            }))
+            .sort((a, b) => {
+              const phaseA = phaseOrderMap.get(a.phaseId) ?? 999;
+              const phaseB = phaseOrderMap.get(b.phaseId) ?? 999;
+              return phaseA - phaseB;
+            });
+        }
       }
 
       // 5. Fetch documents, updates, questions

@@ -63,19 +63,11 @@ const ClientDashboard: React.FC = () => {
     );
   }
 
-  // Current Phase Logic
-  const currentPhase = phases.find((p) => p.status === "current") || phases.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+  // Current Phase Logic — phases come pre-sorted from the hook
+  const currentPhase = phases.find((p) => p.status === "current") || phases[0];
 
-  // Sort phases, then sort tasks by phase order + task sort_order
-  const sortedPhases = [...phases].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  const sortedTasks = [...tasks]
-    .map(t => ({ ...t, _phaseSortOrder: sortedPhases.findIndex(p => p.id === t.phaseId) }))
-    .sort((a, b) => {
-      if (a._phaseSortOrder !== b._phaseSortOrder) return a._phaseSortOrder - b._phaseSortOrder;
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    });
-
-  const pendingTasks = sortedTasks
+  // Tasks are pre-sorted by the hook (phase order → task sort_order)
+  const pendingTasks = tasks
     .filter((t) => t.status === "pending" || t.status === "in_progress")
     .slice(0, 5);
   const nextTask = pendingTasks[0];
