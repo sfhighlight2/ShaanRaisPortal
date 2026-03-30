@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, CheckSquare, Package, FileText,
   Bell, User, Settings, Users, Inbox, ClipboardList, BarChart3, Blocks,
@@ -54,6 +54,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isAdmin = user?.role === "admin" || user?.role === "manager" || user?.role === "team_member";
   const nav = isAdmin
@@ -129,7 +130,10 @@ export function AppSidebar() {
                 {(["client", "admin", "manager"] as const).map((role) => (
                   <button
                     key={role}
-                    onClick={() => switchRole(role)}
+                    onClick={async () => {
+                      await switchRole(role);
+                      navigate(role === "client" ? "/dashboard" : "/admin", { replace: true });
+                    }}
                     className={`text-[10px] px-2 py-1 rounded-md transition-colors ${user?.role === role
                         ? "bg-sidebar-primary text-sidebar-primary-foreground"
                         : "bg-sidebar-accent text-sidebar-muted hover:text-sidebar-foreground"

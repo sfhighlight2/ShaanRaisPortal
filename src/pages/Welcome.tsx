@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, FileText, BarChart3 } from "lucide-react";
 import logo from "@/assets/shaan-rais-logo.png";
@@ -25,6 +26,12 @@ const steps = [
 
 const Welcome: React.FC = () => {
   const { completeWelcome, user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleEnter = () => {
+    completeWelcome();
+    navigate("/dashboard", { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -77,7 +84,7 @@ const Welcome: React.FC = () => {
           transition={{ delay: 0.9 }}
           className="mt-12"
         >
-          <Button onClick={completeWelcome} size="lg" className="px-10 h-12 text-sm font-medium hover:scale-[1.02] active:scale-[0.98]">
+          <Button onClick={handleEnter} size="lg" className="px-10 h-12 text-sm font-medium hover:scale-[1.02] active:scale-[0.98]">
             Enter your portal
           </Button>
         </motion.div>
