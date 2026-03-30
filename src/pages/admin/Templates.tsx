@@ -156,16 +156,27 @@ const AdminTemplates: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this template?")) return;
+    if (!confirm("Are you sure you want to delete this template? All its phases, tasks, and deliverables will be lost.")) return;
     try {
+      // Manual cascade delete
+      const { data: phases } = await supabase.from("template_phases").select("id").eq("template_id", id);
+      if (phases && phases.length > 0) {
+        const phaseIds = phases.map(p => p.id);
+        await supabase.from("template_tasks").delete().in("template_phase_id", phaseIds);
+        await supabase.from("template_deliverables").delete().in("template_phase_id", phaseIds);
+        await supabase.from("template_phases").delete().eq("template_id", id);
+      }
+      
       const { error: err } = await supabase
         .from("package_templates")
         .delete()
         .eq("id", id);
       if (err) throw err;
+      toast({ title: "Template Deleted" });
       loadTemplates();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete template:", err);
+      toast({ title: "Error Deleting Template", description: err.message, variant: "destructive" });
     }
   };
 
@@ -201,12 +212,20 @@ const AdminTemplates: React.FC = () => {
   };
 
   const deletePhase = async (id: string) => {
-    if (!confirm("Delete phase?")) return;
-    const { error } = await supabase.from("template_phases").delete().eq("id", id);
-    if (!error) {
-      toast({ title: "Deleted", description: "Phase deleted." });
-      loadTemplates();
-    } else {
+    if (!confirm("Delete phase? All associated tasks and deliverables will also be deleted.")) return;
+    try {
+      // Manual cascade delete
+      await supabase.from("template_tasks").delete().eq("template_phase_id", id);
+      await supabase.from("template_deliverables").delete().eq("template_phase_id", id);
+      
+      const { error } = await supabase.from("template_phases").delete().eq("id", id);
+      if (!error) {
+        toast({ title: "Deleted", description: "Phase deleted." });
+        loadTemplates();
+      } else {
+        throw error;
+      }
+    } catch (error: any) {
       console.error(error);
       toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
     }
@@ -228,7 +247,7 @@ const AdminTemplates: React.FC = () => {
     if (!taskForm.title) return;
     const { error } = editTask
       ? await supabase.from("template_tasks").update({ title: taskForm.title, task_type: taskForm.taskType }).eq("id", editTask.id)
-      : await supabase.from("template_tasks").insert({ phase_id: taskForm.phaseId, title: taskForm.title, task_type: taskForm.taskType, sort_order: 1 });
+      : await supabase.from("template_tasks").insert({ template_phase_id: taskForm.phaseId, title: taskForm.title, task_type: taskForm.taskType, sort_order: 1 });
     if (!error) { 
       toast({ title: "Saved", description: editTask ? "Task updated." : "Task added." });
       setShowTaskDialog(false); 
@@ -267,7 +286,7 @@ const AdminTemplates: React.FC = () => {
     if (!delivForm.title) return;
     const { error } = editDeliv
       ? await supabase.from("template_deliverables").update({ title: delivForm.title, visible_to_client: delivForm.visibleToClient }).eq("id", editDeliv.id)
-      : await supabase.from("template_deliverables").insert({ phase_id: delivForm.phaseId, title: delivForm.title, visible_to_client: delivForm.visibleToClient });
+      : await supabase.from("template_deliverables").insert({ template_phase_id: delivForm.phaseId, title: delivForm.title, visible_to_client: delivForm.visibleToClient });
     if (!error) { 
       toast({ title: "Saved", description: editDeliv ? "Deliverable updated." : "Deliverable added." });
       setShowDelivDialog(false); 
