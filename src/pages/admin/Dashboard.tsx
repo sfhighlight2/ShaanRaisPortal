@@ -145,7 +145,7 @@ const AdminDashboard: React.FC = () => {
                   <TableHead>Package</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Phase</TableHead>
-                  <TableHead>Manager</TableHead>
+                  <TableHead>Consultant</TableHead>
                   <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
