@@ -4,8 +4,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
-  Edit, Trash2, Plus, GripVertical
+  Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ interface Deliverable { id: string; title: string; phaseId: string; phaseName?: 
 interface Update { id: string; title: string; createdAt: string; }
 interface Question { id: string; subject: string; message: string; response?: string; status: string; }
 interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
+interface DocumentRow { id: string; title: string; documentType: string; fileUrl?: string; visibleToClient: boolean; uploadedAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -89,10 +92,17 @@ const AdminClientDetail: React.FC = () => {
   const [delivForm, setDelivForm] = useState({ title: "", description: "", phaseId: "", visibleToClient: false });
   const [savingDeliv, setSavingDeliv] = useState(false);
 
+  // Document State
+  const [showDocDialog, setShowDocDialog] = useState(false);
+  const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
+  const [docForm, setDocForm] = useState({ title: "", documentType: "other", fileUrl: "", visibleToClient: true });
+  const [savingDoc, setSavingDoc] = useState(false);
+
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -161,11 +171,12 @@ const AdminClientDetail: React.FC = () => {
         }
       }
 
-      // Updates, Questions, Activity
-      const [updatesRes, questionsRes, activityRes] = await Promise.all([
+      // Updates, Questions, Activity, Documents
+      const [updatesRes, questionsRes, activityRes, docsRes] = await Promise.all([
         supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
         supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
         supabase.from("activity_logs").select("id, event_label, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(10),
+        supabase.from("documents").select("*").eq("client_id", clientId).order("uploaded_at", { ascending: false }),
       ]);
 
       setUpdates((updatesRes.data || []).map(u => ({ id: u.id, title: u.title, createdAt: u.created_at })));
@@ -173,6 +184,10 @@ const AdminClientDetail: React.FC = () => {
         id: q.id, subject: q.subject, message: q.message, response: q.response ?? undefined, status: q.status,
       })));
       setActivities((activityRes.data || []).map(a => ({ id: a.id, eventLabel: a.event_label, createdAt: a.created_at })));
+      setDocuments((docsRes.data || []).map(d => ({
+        id: d.id, title: d.title, documentType: d.document_type, fileUrl: d.file_url ?? undefined,
+        visibleToClient: d.visible_to_client, uploadedAt: d.uploaded_at,
+      })));
     } catch (err) {
       console.error("ClientDetail load error:", err);
     } finally {
@@ -330,6 +345,52 @@ const AdminClientDetail: React.FC = () => {
     if (!confirm("Delete this deliverable?")) return;
     const { error } = await supabase.from("deliverables").delete().eq("id", id);
     if (!error) loadAll();
+  };
+
+  // Document CRUD
+  const openDocDialog = (d?: DocumentRow) => {
+    if (d) {
+      setEditDoc(d);
+      setDocForm({ title: d.title, documentType: d.documentType, fileUrl: d.fileUrl || "", visibleToClient: d.visibleToClient });
+    } else {
+      setEditDoc(null);
+      setDocForm({ title: "", documentType: "other", fileUrl: "", visibleToClient: true });
+    }
+    setShowDocDialog(true);
+  };
+
+  const saveDoc = async () => {
+    if (!docForm.title || !clientId) return;
+    setSavingDoc(true);
+    let error;
+    if (editDoc) {
+      const { error: err } = await supabase.from("documents").update({
+        title: docForm.title, document_type: docForm.documentType,
+        file_url: docForm.fileUrl || null, visible_to_client: docForm.visibleToClient,
+      }).eq("id", editDoc.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from("documents").insert({
+        client_id: clientId, title: docForm.title, document_type: docForm.documentType,
+        file_url: docForm.fileUrl || null, visible_to_client: docForm.visibleToClient,
+      });
+      error = err;
+    }
+    setSavingDoc(false);
+    if (!error) {
+      setShowDocDialog(false);
+      toast({ title: editDoc ? "Document Updated" : "Document Added" });
+      loadAll();
+    } else {
+      console.error(error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const deleteDoc = async (id: string) => {
+    if (!confirm("Delete this document?")) return;
+    const { error } = await supabase.from("documents").delete().eq("id", id);
+    if (!error) { toast({ title: "Document Deleted" }); loadAll(); }
   };
 
   if (loading) {
@@ -556,6 +617,7 @@ const AdminClientDetail: React.FC = () => {
           <TabsTrigger value="overview" className="gap-1.5"><Building className="h-3.5 w-3.5" /> Overview</TabsTrigger>
           <TabsTrigger value="tasks" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Tasks</TabsTrigger>
           <TabsTrigger value="deliverables" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Deliverables</TabsTrigger>
+          <TabsTrigger value="documents" className="gap-1.5"><File className="h-3.5 w-3.5" /> Documents</TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5"><Activity className="h-3.5 w-3.5" /> Activity</TabsTrigger>
           <TabsTrigger value="questions" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Questions</TabsTrigger>
         </TabsList>
@@ -670,6 +732,50 @@ const AdminClientDetail: React.FC = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="documents" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-medium">Documents</CardTitle>
+              <Button size="sm" onClick={() => openDocDialog()}><Plus className="h-4 w-4 mr-2" /> Add Document</Button>
+            </CardHeader>
+            <CardContent>
+              {documents.length === 0 ? <p className="text-sm text-muted-foreground py-4">No documents.</p> : (
+                <div className="space-y-2">
+                  {documents.map(d => (
+                    <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
+                      {d.fileUrl ? <Link2 className="h-4 w-4 text-primary shrink-0" /> : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {d.fileUrl ? (
+                            <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate">{d.title}</a>
+                          ) : (
+                            <p className="text-sm font-medium truncate">{d.title}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge variant="outline" className="text-[10px]">
+                            {d.documentType === 'contract' ? 'Contract' : d.documentType === 'sow' ? 'Statement of Work' : d.documentType === 'agreement' ? 'Agreement' : 'Document'}
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground">
+                            {new Date(d.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={`text-[10px] hidden md:inline-flex ${d.visibleToClient ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}>
+                        {d.visibleToClient ? "Visible" : "Internal"}
+                      </Badge>
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDocDialog(d)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDoc(d.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="activity" className="mt-6">
           <Card>
             <CardContent className="p-4">
@@ -709,6 +815,44 @@ const AdminClientDetail: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Document Dialog */}
+      <Dialog open={showDocDialog} onOpenChange={setShowDocDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editDoc ? "Edit Document" : "Add Document"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-sm font-medium">Title</Label>
+              <Input className="mt-1" value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Service Agreement" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Document Type</Label>
+              <Select value={docForm.documentType} onValueChange={v => setDocForm(f => ({ ...f, documentType: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contract">Contract</SelectItem>
+                  <SelectItem value="sow">Statement of Work</SelectItem>
+                  <SelectItem value="agreement">Agreement</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">File URL / Link</Label>
+              <Input className="mt-1" value={docForm.fileUrl} onChange={e => setDocForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." />
+              <p className="text-xs text-muted-foreground mt-1">Paste a Google Drive, Dropbox, or any external link</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="doc-visible" checked={docForm.visibleToClient} onCheckedChange={c => setDocForm(f => ({ ...f, visibleToClient: !!c }))} />
+              <Label htmlFor="doc-visible" className="text-sm">Visible to client</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDocDialog(false)}>Cancel</Button>
+            <Button onClick={saveDoc} disabled={savingDoc || !docForm.title}>{savingDoc ? "Saving..." : editDoc ? "Update" : "Add Document"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

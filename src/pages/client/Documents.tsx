@@ -41,12 +41,20 @@ const ClientDocuments: React.FC = () => {
   const sows = documents.filter((d) => d.documentType === "sow");
   const agreements = documents.filter((d) => d.documentType === "agreement");
 
-  const handleView = (title: string) => {
-    toast({ title: "Opening Preview", description: `Viewing "${title}" — file preview will be available once connected to storage.` });
+  const handleView = (doc: { title: string; fileUrl?: string }) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
+    } else {
+      toast({ title: "No File", description: `"${doc.title}" does not have a linked file yet.` });
+    }
   };
 
-  const handleDownload = (title: string) => {
-    toast({ title: "Download Started", description: `Downloading "${title}" — file downloads will be available once connected to storage.` });
+  const handleDownload = (doc: { title: string; fileUrl?: string }) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
+    } else {
+      toast({ title: "No File", description: `"${doc.title}" does not have a linked file yet.` });
+    }
   };
 
   const handleOpenDrive = () => {
@@ -150,7 +158,7 @@ const ClientDocuments: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                     className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
-                    onClick={() => handleView(doc.title)}
+                    onClick={() => handleView(doc)}
                   >
                     <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <Icon className="h-5 w-5 text-muted-foreground" />
@@ -167,10 +175,10 @@ const ClientDocuments: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleView(doc.title); }}>
+                      <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleView(doc); }}>
                         <Eye className="h-3.5 w-3.5" /> View
                       </Button>
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownload(doc.title); }}>
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownload(doc); }}>
                         <Download className="h-3.5 w-3.5" /> Download
                       </Button>
                     </div>
