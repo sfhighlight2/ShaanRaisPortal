@@ -83,7 +83,7 @@ const ClientDashboard: React.FC = () => {
           { label: "Package", value: project?.projectName || "—" },
           { label: "Current Phase", value: currentPhase?.name || "—" },
           { label: "Status", badge: true, value: client.status.replace("_", " ") },
-          { label: "Account Manager", value: `${accountManager?.firstName} ${accountManager?.lastName}` },
+          { label: "Account Manager", value: accountManager ? `${accountManager.firstName} ${accountManager.lastName}` : "—" },
         ].map((item, i) => (
           <motion.div
             key={item.label}
