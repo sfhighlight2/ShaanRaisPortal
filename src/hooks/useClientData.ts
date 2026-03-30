@@ -165,8 +165,7 @@ export function useClientData() {
               .from("deliverables")
               .select("*")
               .in("phase_id", phaseIds)
-              .eq("visible_to_client", true)
-              .order("sort_order"),
+              .eq("visible_to_client", true),
           ]);
 
           if (tasksRes.error) throw tasksRes.error;

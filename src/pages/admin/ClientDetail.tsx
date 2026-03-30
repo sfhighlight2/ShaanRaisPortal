@@ -386,7 +386,7 @@ const AdminClientDetail: React.FC = () => {
           <p className="text-sm font-medium text-foreground mt-1">{completedTasks.length}/{tasks.length} done</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Manager</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Consultant</p>
           <p className="text-sm font-medium text-foreground mt-1">{client.manager?.firstName || "—"}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
