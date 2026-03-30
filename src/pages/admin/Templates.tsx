@@ -17,6 +17,15 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { TaskType, PackageTemplate } from "@/lib/types";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const taskTypeIcons: Record<string, React.ElementType> = {
   form: ClipboardList,
@@ -28,6 +37,29 @@ const taskTypeIcons: Record<string, React.ElementType> = {
 };
 
 const emptyForm = { name: "", description: "" };
+
+// ── Sortable Task Item ──
+function SortableTaskItem({ task, isAdmin, openTaskDialog, deleteTask, phaseId }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const Icon = taskTypeIcons[task.task_type] || taskTypeIcons[task.taskType] || ClipboardList;
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded group/item">
+      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="flex-1">{task.title}</span>
+      <Badge variant="outline" className="text-[9px]">{task.task_type || task.taskType}</Badge>
+      {isAdmin && (
+        <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openTaskDialog(phaseId, task)}><Edit className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const AdminTemplates: React.FC = () => {
   const { user } = useAuth();
@@ -211,23 +243,29 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
+  // ── Edge Function helper ──
+  const adminAction = async (payload: Record<string, unknown>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("No active session.");
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    return json;
+  };
+
   const deletePhase = async (id: string) => {
     if (!confirm("Delete phase? All associated tasks and deliverables will also be deleted.")) return;
     try {
-      // Manual cascade delete
-      await supabase.from("template_tasks").delete().eq("template_phase_id", id);
-      await supabase.from("template_deliverables").delete().eq("template_phase_id", id);
-      
-      const { error } = await supabase.from("template_phases").delete().eq("id", id);
-      if (!error) {
-        toast({ title: "Deleted", description: "Phase deleted." });
-        loadTemplates();
-      } else {
-        throw error;
-      }
+      await adminAction({ action: "delete_phase", phase_id: id });
+      toast({ title: "Deleted", description: "Phase deleted." });
+      loadTemplates();
     } catch (error: any) {
       console.error(error);
-      toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
+      toast({ title: "Error Deleting Phase", description: error.message, variant: "destructive" });
     }
   };
 
@@ -235,7 +273,7 @@ const AdminTemplates: React.FC = () => {
   const openTaskDialog = (phaseId: string, task?: any) => {
     if (task) {
       setEditTask(task);
-      setTaskForm({ title: task.title, taskType: task.taskType, phaseId });
+      setTaskForm({ title: task.title, taskType: task.task_type || task.taskType, phaseId });
     } else {
       setEditTask(null);
       setTaskForm({ title: "", taskType: "review", phaseId });
@@ -260,11 +298,11 @@ const AdminTemplates: React.FC = () => {
 
   const deleteTask = async (id: string) => {
     if (!confirm("Delete task?")) return;
-    const { error } = await supabase.from("template_tasks").delete().eq("id", id);
-    if (!error) {
+    try {
+      await adminAction({ action: "delete_task", task_id: id });
       toast({ title: "Deleted", description: "Task deleted." });
       loadTemplates();
-    } else {
+    } catch (error: any) {
       console.error(error);
       toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
     }
@@ -299,13 +337,52 @@ const AdminTemplates: React.FC = () => {
 
   const deleteDeliv = async (id: string) => {
     if (!confirm("Delete deliverable?")) return;
-    const { error } = await supabase.from("template_deliverables").delete().eq("id", id);
-    if (!error) {
+    try {
+      await adminAction({ action: "delete_deliverable", deliverable_id: id });
       toast({ title: "Deleted", description: "Deliverable deleted." });
       loadTemplates();
-    } else {
+    } catch (error: any) {
       console.error(error);
       toast({ title: "Error Deleting", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // ── Drag & Drop Reorder ──
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = async (event: DragEndEvent, phaseId: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    // Find phase in templates
+    const tpl = templates.find(t => t.phases?.some((p: any) => p.id === phaseId));
+    const phase = tpl?.phases?.find((p: any) => p.id === phaseId);
+    if (!phase?.tasks) return;
+
+    const oldIndex = phase.tasks.findIndex((t: any) => t.id === active.id);
+    const newIndex = phase.tasks.findIndex((t: any) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(phase.tasks, oldIndex, newIndex);
+    
+    // Optimistic update
+    setTemplates(prev => prev.map(t => t.id !== tpl!.id ? t : {
+      ...t,
+      phases: (t.phases || []).map((p: any) => p.id !== phaseId ? p : { ...p, tasks: reordered }),
+    }));
+
+    // Persist
+    try {
+      await adminAction({
+        action: "reorder_tasks",
+        tasks: reordered.map((t: any, i: number) => ({ id: t.id, sort_order: i + 1 })),
+      });
+    } catch (err) {
+      console.error("Reorder failed:", err);
+      loadTemplates(); // revert on failure
     }
   };
 
@@ -452,24 +529,22 @@ const AdminTemplates: React.FC = () => {
                                   {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openTaskDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
                                 </div>
                                 {(phase.tasks || []).length > 0 && (
-                                  <div className="space-y-1">
-                                    {(phase.tasks || []).map((task: any) => {
-                                      const Icon = taskTypeIcons[task.taskType] || ClipboardList;
-                                      return (
-                                        <div key={task.id} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded group/item">
-                                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <span className="flex-1">{task.title}</span>
-                                          <Badge variant="outline" className="text-[9px]">{task.taskType}</Badge>
-                                          {isAdmin && (
-                                            <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
-                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openTaskDialog(phase.id, task)}><Edit className="h-3 w-3" /></Button>
-                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, phase.id)}>
+                                    <SortableContext items={(phase.tasks || []).map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
+                                      <div className="space-y-1">
+                                        {(phase.tasks || []).map((task: any) => (
+                                          <SortableTaskItem
+                                            key={task.id}
+                                            task={task}
+                                            isAdmin={isAdmin}
+                                            openTaskDialog={openTaskDialog}
+                                            deleteTask={deleteTask}
+                                            phaseId={phase.id}
+                                          />
+                                        ))}
+                                      </div>
+                                    </SortableContext>
+                                  </DndContext>
                                 )}
                               </div>
 
