@@ -375,7 +375,7 @@ const AdminClientDetail: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Package</p>
-          <p className="text-sm font-medium text-foreground mt-1 truncate">—</p>
+          <p className="text-sm font-medium text-foreground mt-1 truncate">{templates.find(t => t.id === client.package_template_id)?.name || "—"}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Phase</p>
