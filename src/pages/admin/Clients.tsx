@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import type { ClientStatus } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
@@ -187,6 +188,7 @@ const kanbanColumnStyles: Record<ClientStatus, { header: string; card: string; d
 
 const AdminClients: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [templates, setTemplates] = useState<PackageTemplate[]>([]);
@@ -261,7 +263,9 @@ const AdminClients: React.FC = () => {
     }
     setSubmitting(true);
     setError("");
-    const { error: err } = await supabase.from("clients").insert({
+    const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
+    
+    const { data: newClient, error: err } = await supabase.from("clients").insert({
       company_name: form.company_name,
       primary_contact_name: form.primary_contact_name,
       primary_contact_email: form.primary_contact_email || null,
@@ -270,13 +274,33 @@ const AdminClients: React.FC = () => {
       airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
-      package_template_id: form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null),
-    });
-    setSubmitting(false);
+      package_template_id: packageTemplateId,
+    }).select("id").single();
+    
     if (err) {
       setError(err.message);
+      setSubmitting(false);
       return;
     }
+
+    if (packageTemplateId && newClient?.id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ client_id: newClient.id, package_template_id: packageTemplateId })
+        });
+        toast({ title: "Client Created", description: "Package template has been assigned." });
+      } catch (pkgErr) {
+        console.error("Failed to assign package details:", pkgErr);
+        toast({ title: "Template Warning", description: "Client was created but applying the template failed.", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Client Created" });
+    }
+
+    setSubmitting(false);
     setShowAddDialog(false);
     loadClients();
   };
@@ -289,6 +313,8 @@ const AdminClients: React.FC = () => {
     }
     setSubmitting(true);
     setError("");
+    const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
+
     const { error: err } = await supabase.from("clients").update({
       company_name: form.company_name,
       primary_contact_name: form.primary_contact_name,
@@ -298,13 +324,33 @@ const AdminClients: React.FC = () => {
       airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
-      package_template_id: form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null),
+      package_template_id: packageTemplateId,
     }).eq("id", editClient.id);
-    setSubmitting(false);
+    
     if (err) {
       setError(err.message);
+      setSubmitting(false);
       return;
     }
+
+    if (packageTemplateId && packageTemplateId !== (editClient as any).package_template_id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ client_id: editClient.id, package_template_id: packageTemplateId })
+        });
+        toast({ title: "Package Assigned", description: "Template tasks have been fully applied." });
+      } catch (pkgErr) {
+        console.error("Failed to assign package details:", pkgErr);
+        toast({ title: "Template Warning", description: "Updated client but applying the new template failed.", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Client Updated" });
+    }
+
+    setSubmitting(false);
     setEditClient(null);
     loadClients();
   };

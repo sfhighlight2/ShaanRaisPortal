@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
-import type { ClientStatus, PhaseStatus } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import type { ClientStatus, PhaseStatus, PackageTemplate } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
@@ -42,6 +43,7 @@ interface ClientData {
   googleDriveUrl?: string;
   airtableUrl?: string;
   manager?: { id: string; firstName: string; lastName: string } | null;
+  package_template_id?: string;
 }
 
 interface Phase {
@@ -59,6 +61,7 @@ interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { clientId } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
@@ -68,8 +71,10 @@ const AdminClientDetail: React.FC = () => {
   const [editForm, setEditForm] = useState<{
     companyName: string; contactName: string; email: string; phone: string;
     status: ClientStatus; driveUrl: string; airtableUrl: string; managerId: string;
+    packageTemplateId: string;
   } | null>(null);
   const [managers, setManagers] = useState<{id: string, name: string}[]>([]);
+  const [templates, setTemplates] = useState<PackageTemplate[]>([]);
   const [savingClient, setSavingClient] = useState(false);
 
   // Task State
@@ -116,11 +121,15 @@ const AdminClientDetail: React.FC = () => {
         googleDriveUrl: c.google_drive_url ?? undefined,
         airtableUrl: c.airtable_url ?? undefined,
         manager: managerRaw ? { id: managerRaw.id, firstName: managerRaw.first_name, lastName: managerRaw.last_name } : null,
+        package_template_id: c.package_template_id ?? undefined,
       });
 
-      // Load Managers for edit
+      // Load Managers and Templates for edit
       const { data: mgrs } = await supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]);
       if (mgrs) setManagers(mgrs.map(m => ({ id: m.id, name: `${m.first_name} ${m.last_name}` })));
+      
+      const { data: tmpls } = await supabase.from("package_templates").select("id, name").order("name");
+      if (tmpls) setTemplates(tmpls as PackageTemplate[]);
 
       // Project → phases
       const { data: projects } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).limit(1);
@@ -174,8 +183,10 @@ const AdminClientDetail: React.FC = () => {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   const handleEditClient = async () => {
-    if (!editForm || !clientId) return;
+    if (!editForm || !clientId || !client) return;
     setSavingClient(true);
+    const packageTemplateId = editForm.packageTemplateId === "unassigned" ? null : editForm.packageTemplateId;
+    
     const { error } = await supabase.from("clients").update({
       company_name: editForm.companyName,
       primary_contact_name: editForm.contactName,
@@ -185,15 +196,36 @@ const AdminClientDetail: React.FC = () => {
       google_drive_url: editForm.driveUrl || null,
       airtable_url: editForm.airtableUrl || null,
       account_manager_id: editForm.managerId === "unassigned" ? null : editForm.managerId,
+      package_template_id: packageTemplateId,
     }).eq("id", clientId);
-    setSavingClient(false);
     
-    if (!error) {
-      setShowEditDialog(false);
-      loadAll();
-    } else {
+    if (error) {
       console.error(error);
+      toast({ title: "Error Saving", description: error.message, variant: "destructive" });
+      setSavingClient(false);
+      return;
     }
+
+    if (packageTemplateId && packageTemplateId !== client.package_template_id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ client_id: clientId, package_template_id: packageTemplateId })
+        });
+        toast({ title: "Package Assigned", description: "Template tasks have been successfully applied." });
+      } catch (pkgErr) {
+        console.error("Failed to assign package:", pkgErr);
+        toast({ title: "Template Warning", description: "Updated client but applying the new template failed.", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Saved", description: "Client details updated." });
+    }
+
+    setSavingClient(false);
+    setShowEditDialog(false);
+    loadAll();
   };
 
   const openEdit = () => {
@@ -207,6 +239,7 @@ const AdminClientDetail: React.FC = () => {
       driveUrl: client.googleDriveUrl || "",
       airtableUrl: client.airtableUrl || "",
       managerId: client.manager?.id || "unassigned",
+      packageTemplateId: client.package_template_id || "unassigned",
     });
     setShowEditDialog(true);
   };
@@ -420,14 +453,25 @@ const AdminClientDetail: React.FC = () => {
               </div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Google Drive URL</label><Input value={editForm.driveUrl} onChange={e => setEditForm(f => f ? ({ ...f, driveUrl: e.target.value }) : null)} /></div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Airtable URL</label><Input value={editForm.airtableUrl} onChange={e => setEditForm(f => f ? ({ ...f, airtableUrl: e.target.value }) : null)} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Account Manager</label>
-                <Select value={editForm.managerId} onValueChange={v => setEditForm(f => f ? ({ ...f, managerId: v }) : null)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {managers.map(m => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><label className="text-sm font-medium">Account Manager</label>
+                  <Select value={editForm.managerId} onValueChange={v => setEditForm(f => f ? ({ ...f, managerId: v }) : null)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {managers.map(m => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5"><label className="text-sm font-medium">Package Template</label>
+                  <Select value={editForm.packageTemplateId} onValueChange={v => setEditForm(f => f ? ({ ...f, packageTemplateId: v }) : null)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">None</SelectItem>
+                      {templates.map(t => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           )}
