@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { FileText, Download, Eye, ExternalLink, FolderOpen, File, FileCheck } from "lucide-react";
+import { FileText, Download, Eye, ExternalLink, FolderOpen, File, FileCheck, Database } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,14 @@ const ClientDocuments: React.FC = () => {
     }
   };
 
+  const handleOpenAirtable = () => {
+    if (client.airtableUrl) {
+      window.open(client.airtableUrl, "_blank", "noopener,noreferrer");
+    } else {
+      toast({ title: "Airtable Not Available", description: "Airtable link has not been set up yet." });
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -66,8 +74,8 @@ const ClientDocuments: React.FC = () => {
         </p>
       </div>
 
-      {/* Google Drive Link */}
-      {client.googleDriveUrl && (
+      {/* Project Links */}
+      {(client.googleDriveUrl || client.airtableUrl) && (
         <Card className="bg-primary/[0.03] border-primary/20">
           <CardContent className="p-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -75,13 +83,22 @@ const ClientDocuments: React.FC = () => {
                 <FolderOpen className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-foreground">Project Files</p>
-                <p className="text-sm text-muted-foreground">Access your complete project folder in Google Drive</p>
+                <p className="font-medium text-foreground">Project Links</p>
+                <p className="text-sm text-muted-foreground">Access your complete project files and records</p>
               </div>
             </div>
-            <Button onClick={handleOpenDrive} className="gap-2 shrink-0">
-              Open Drive <ExternalLink className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-3 shrink-0">
+              {client.googleDriveUrl && (
+                <Button onClick={handleOpenDrive} className="gap-2">
+                  Open Drive <ExternalLink className="h-4 w-4" />
+                </Button>
+              )}
+              {client.airtableUrl && (
+                <Button onClick={handleOpenAirtable} variant="outline" className="gap-2 bg-background border-primary text-primary hover:bg-primary/5">
+                  Open Airtable <Database className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

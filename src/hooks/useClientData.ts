@@ -92,6 +92,7 @@ export function useClientData() {
         status: client.status,
         accountManagerId: client.account_manager_id,
         googleDriveUrl: client.google_drive_url,
+        airtableUrl: client.airtable_url,
         notes: client.notes,
         createdAt: client.created_at,
       };
