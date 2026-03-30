@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MoreHorizontal, Plus, Eye } from "lucide-react";
+import { Search, Filter, MoreHorizontal, Plus, Eye, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,12 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { mockClients, mockProjects, mockPhases, getUserById } from "@/lib/mock-data";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ClientStatus } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
@@ -51,6 +55,8 @@ interface ClientRow {
   manager?: { first_name: string; last_name: string } | null;
   package?: string;
   currentPhase?: string;
+  google_drive_url?: string;
+  airtable_url?: string;
 }
 
 interface Manager { id: string; first_name: string; last_name: string; }
@@ -59,7 +65,7 @@ const UNASSIGNED = "__unassigned__";
 
 const emptyForm = {
   company_name: "", primary_contact_name: "", primary_contact_email: "",
-  phone: "", status: "lead" as ClientStatus, account_manager_id: UNASSIGNED,
+  phone: "", google_drive_url: "", airtable_url: "", status: "lead" as ClientStatus, account_manager_id: UNASSIGNED,
 };
 
 // ── Standalone form component (NOT defined inside AdminClients) ──────────────
@@ -109,6 +115,22 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
         />
       </div>
       <div className="space-y-1.5">
+        <label className="text-sm font-medium">Google Drive URL</label>
+        <Input
+          value={form.google_drive_url}
+          onChange={e => onChange({ google_drive_url: e.target.value })}
+          placeholder="https://drive.google.com/..."
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Airtable URL</label>
+        <Input
+          value={form.airtable_url}
+          onChange={e => onChange({ airtable_url: e.target.value })}
+          placeholder="https://airtable.com/..."
+        />
+      </div>
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Status</label>
         <Select value={form.status} onValueChange={v => onChange({ status: v as ClientStatus })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -145,38 +167,23 @@ const AdminClients: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editClient, setEditClient] = useState<ClientRow | null>(null);
+  const [deleteClient, setDeleteClient] = useState<ClientRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useAuth();
 
   const patchForm = (patch: Partial<typeof emptyForm>) =>
     setForm(f => ({ ...f, ...patch }));
 
   const loadClients = useCallback(async () => {
     try {
-      if (!isSupabaseConfigured) {
-        setClients(mockClients.map(c => {
-          const pm = mockProjects.find(p => p.clientId === c.id && p.isMainProject);
-          const phases = mockPhases.filter(ph => ph.projectId === pm?.id);
-          const cur = phases.find(ph => ph.status === "current");
-          const mgr = getUserById(c.accountManagerId);
-          return {
-            id: c.id, company_name: c.companyName, primary_contact_name: c.primaryContactName,
-            primary_contact_email: c.primaryContactEmail, phone: null, status: c.status as ClientStatus,
-            account_manager_id: c.accountManagerId, package: pm?.projectName,
-            currentPhase: cur?.name,
-            manager: mgr ? { first_name: mgr.firstName, last_name: mgr.lastName } : null,
-          };
-        }));
-        return;
-      }
       const { data, error: fetchErr } = await supabase
         .from("clients")
         .select("*, manager:profiles!account_manager_id(first_name, last_name)")
         .neq("status", "archived")
         .order("company_name");
       if (fetchErr) throw fetchErr;
-      // Normalize the join result (Supabase returns FK joins as arrays)
       const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
         ...(r as Omit<ClientRow, "manager">),
         manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
@@ -206,6 +213,7 @@ const AdminClients: React.FC = () => {
     setForm({
       company_name: c.company_name, primary_contact_name: c.primary_contact_name,
       primary_contact_email: c.primary_contact_email, phone: c.phone ?? "",
+      google_drive_url: c.google_drive_url ?? "", airtable_url: c.airtable_url ?? "",
       status: c.status, account_manager_id: c.account_manager_id ?? UNASSIGNED,
     });
     setError("");
@@ -223,6 +231,8 @@ const AdminClients: React.FC = () => {
       primary_contact_name: form.primary_contact_name,
       primary_contact_email: form.primary_contact_email || null,
       phone: form.phone || null,
+      google_drive_url: form.google_drive_url || null,
+      airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
     });
@@ -248,6 +258,8 @@ const AdminClients: React.FC = () => {
       primary_contact_name: form.primary_contact_name,
       primary_contact_email: form.primary_contact_email || null,
       phone: form.phone || null,
+      google_drive_url: form.google_drive_url || null,
+      airtable_url: form.airtable_url || null,
       status: form.status,
       account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
     }).eq("id", editClient.id);
@@ -262,6 +274,14 @@ const AdminClients: React.FC = () => {
 
   const handleArchive = async (c: ClientRow) => {
     await supabase.from("clients").update({ status: "archived" }).eq("id", c.id);
+    loadClients();
+  };
+
+  const handleDeleteClient = async () => {
+    if (!deleteClient) return;
+    const { error } = await supabase.from("clients").delete().eq("id", deleteClient.id);
+    if (error) console.error("Error deleting client:", error);
+    setDeleteClient(null);
     loadClients();
   };
 
@@ -377,6 +397,14 @@ const AdminClients: React.FC = () => {
                           >
                             Archive
                           </DropdownMenuItem>
+                          {user?.role === "admin" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteClient(client)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -415,6 +443,24 @@ const AdminClients: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Client Dialog */}
+      <AlertDialog open={!!deleteClient} onOpenChange={v => { if (!v) setDeleteClient(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {deleteClient?.company_name} and all of their data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteClient} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

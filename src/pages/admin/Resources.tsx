@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockResources } from "@/lib/mock-data";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { Resource, ResourceType } from "@/lib/types";
 
 const typeIcons: Record<ResourceType, React.ElementType> = {
@@ -39,6 +39,36 @@ const typeColors: Record<ResourceType, string> = {
 const ManagerResources: React.FC = () => {
     const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
+    const [mockResources, setMockResources] = useState<Resource[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadData = React.useCallback(async () => {
+        try {
+            if (!isSupabaseConfigured) return;
+            const { data, error } = await supabase.from("resources").select("*").order("display_order");
+            if (error) throw error;
+            
+            setMockResources((data || []).map(r => ({
+                id: r.id, 
+                title: r.title, 
+                description: r.description, 
+                category: r.category, 
+                type: r.type, 
+                url: r.url, 
+                filePath: r.file_path, 
+                displayOrder: r.display_order, 
+                visibleToRole: r.visible_to_roles
+            })));
+        } catch (err) {
+            console.error("Error loading resources:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // Filter resources visible to current user's role and by search
     const visibleResources = useMemo(() => {
@@ -55,7 +85,7 @@ const ManagerResources: React.FC = () => {
             );
         }
         return resources.sort((a, b) => a.displayOrder - b.displayOrder);
-    }, [user, searchQuery]);
+    }, [user, searchQuery, mockResources]);
 
     // Group by category
     const categories = useMemo(() => {

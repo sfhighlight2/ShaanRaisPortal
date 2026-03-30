@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { mockUsers } from "@/lib/mock-data";
 import type { UserRole } from "@/lib/types";
 
 const roleColors: Record<UserRole, string> = {
@@ -53,13 +52,6 @@ const AdminTeam: React.FC = () => {
 
   const loadMembers = useCallback(async () => {
     try {
-      if (!isSupabaseConfigured) {
-        setMembers(mockUsers.filter(u => u.role !== "client").map(u => ({
-          id: u.id, first_name: u.firstName, last_name: u.lastName,
-          email: u.email, role: u.role as UserRole, status: u.status,
-        })));
-        return;
-      }
       const { data } = await supabase
         .from("profiles")
         .select("*")

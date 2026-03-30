@@ -7,25 +7,66 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockClients, mockProjects, getUserById } from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 const ClientProfile: React.FC = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const { client, project, accountManager, loading, refetch } = useClientData();
+
   const [questionSubject, setQuestionSubject] = useState("");
   const [questionMessage, setQuestionMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const client = mockClients[0];
-  const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
-  const accountManager = getUserById(client.accountManagerId);
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
-  const handleSubmitQuestion = (e: React.FormEvent) => {
+  if (!client) {
+    return null;
+  }
+
+  const handleSubmitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (questionSubject && questionMessage) {
+    if (!questionSubject || !questionMessage || !isSupabaseConfigured) return;
+    
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from("questions").insert({
+        client_id: client.id,
+        project_id: project?.id || null,
+        subject: questionSubject,
+        message: questionMessage,
+        status: "open",
+        created_at: new Date().toISOString()
+      });
+
+      if (error) throw error;
+
       setSubmitted(true);
       setQuestionSubject("");
       setQuestionMessage("");
+      
+      // Refresh the data so it shows up in their dashboard/updates if applicable
+      refetch();
+
       setTimeout(() => setSubmitted(false), 3000);
+    } catch (err: any) {
+      console.error("Error submitting question:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to submit your question. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -175,8 +216,17 @@ const ClientProfile: React.FC = () => {
                   onChange={(e) => setQuestionMessage(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="gap-2" disabled={!questionSubject || !questionMessage}>
-                <Send className="h-4 w-4" /> Submit Question
+              <Button type="submit" className="gap-2" disabled={!questionSubject || !questionMessage || isSubmitting}>
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                    Submitting...
+                  </span>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" /> Submit Question
+                  </>
+                )}
               </Button>
             </form>
           )}

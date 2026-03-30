@@ -10,27 +10,58 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-    mockOnboardingPhases, mockOnboardingTasks, mockManagerTaskCompletions,
-} from "@/lib/mock-data";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { OnboardingPhase, OnboardingTask, ManagerTaskCompletion } from "@/lib/types";
 
 const ManagerOnboarding: React.FC = () => {
     const { user } = useAuth();
 
-    // Local state for phases and tasks (cloned from mock)
-    const [phases] = useState<OnboardingPhase[]>(
-        [...mockOnboardingPhases].sort((a, b) => a.displayOrder - b.displayOrder)
-    );
-    const [tasks] = useState<OnboardingTask[]>(
-        [...mockOnboardingTasks].sort((a, b) => a.displayOrder - b.displayOrder)
-    );
+    const [phases, setPhases] = useState<OnboardingPhase[]>([]);
+    const [tasks, setTasks] = useState<OnboardingTask[]>([]);
+    const [completions, setCompletions] = useState<ManagerTaskCompletion[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Track completions in state
-    const [completions, setCompletions] = useState<ManagerTaskCompletion[]>(() => {
-        if (!user) return [];
-        return mockManagerTaskCompletions.filter((c) => c.managerId === user.id);
-    });
+    const loadData = React.useCallback(async () => {
+        if (!user || !isSupabaseConfigured) {
+            setLoading(false);
+            return;
+        }
+        
+        try {
+            const [phasesRes, tasksRes, completionsRes] = await Promise.all([
+                supabase.from("onboarding_phases").select("*").order("display_order"),
+                supabase.from("onboarding_tasks").select("*").order("display_order"),
+                supabase.from("manager_task_completions").select("*").eq("manager_id", user.id),
+            ]);
+
+            if (phasesRes.error) throw phasesRes.error;
+            if (tasksRes.error) throw tasksRes.error;
+            if (completionsRes.error) throw completionsRes.error;
+
+            setPhases((phasesRes.data || []).map(p => ({
+                id: p.id, name: p.name, description: p.description, displayOrder: p.display_order, createdAt: p.created_at
+            })));
+            setTasks((tasksRes.data || []).map(t => ({
+                id: t.id, phaseId: t.phase_id, title: t.title, description: t.description, displayOrder: t.display_order, required: t.required, resourceLink: t.resource_link
+            })));
+            setCompletions((completionsRes.data || []).map(c => ({
+                id: c.id, managerId: c.manager_id, taskId: c.task_id, completed: c.completed, completedAt: c.completed_at
+            })));
+            
+            // Auto expand available phases on load
+            if (phasesRes.data && expandedPhases.size === 0) {
+                setExpandedPhases(new Set(phasesRes.data.map(p => p.id)));
+            }
+        } catch (err) {
+            console.error("Error loading manager onboarding:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
+    React.useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // Expand/collapse state
     const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => new Set(phases.map((p) => p.id)));
@@ -42,27 +73,56 @@ const ManagerOnboarding: React.FC = () => {
 
     const isTaskCompleted = (taskId: string) => completions.some((c) => c.taskId === taskId && c.completed);
 
-    const toggleTask = (taskId: string) => {
-        setCompletions((prev) => {
-            const existing = prev.find((c) => c.taskId === taskId);
+    const toggleTask = async (taskId: string) => {
+        if (!user) return;
+        
+        try {
+            const existing = completions.find((c) => c.taskId === taskId);
+            
             if (existing) {
-                return prev.map((c) =>
-                    c.taskId === taskId
-                        ? { ...c, completed: !c.completed, completedAt: !c.completed ? new Date().toISOString() : undefined }
+                // Optimistic UI update
+                setCompletions(prev => prev.map(c => 
+                    c.taskId === taskId 
+                        ? { ...c, completed: !c.completed, completedAt: !c.completed ? new Date().toISOString() : undefined } 
                         : c
-                );
-            }
-            return [
-                ...prev,
-                {
-                    id: `mc-${Date.now()}`,
-                    managerId: user?.id || "",
+                ));
+                
+                // Update DB
+                await supabase.from("manager_task_completions").update({
+                    completed: !existing.completed,
+                    completed_at: !existing.completed ? new Date().toISOString() : null
+                }).eq("id", existing.id);
+            } else {
+                // Optimistic UI update
+                const newCompletion: ManagerTaskCompletion = {
+                    id: `temp-${Date.now()}`,
+                    managerId: user.id,
                     taskId,
                     completed: true,
                     completedAt: new Date().toISOString(),
-                },
-            ];
-        });
+                };
+                setCompletions(prev => [...prev, newCompletion]);
+                
+                // Insert to DB
+                const { data, error } = await supabase.from("manager_task_completions").insert({
+                    manager_id: user.id,
+                    task_id: taskId,
+                    completed: true,
+                    completed_at: new Date().toISOString()
+                }).select().single();
+                
+                if (error) throw error;
+                
+                // Replace temp ID with real DB ID
+                setCompletions(prev => prev.map(c => 
+                    c.id === newCompletion.id ? { ...c, id: data.id } : c
+                ));
+            }
+        } catch (err) {
+            console.error("Error toggling task:", err);
+            // Revert on error by reloading
+            loadData();
+        }
     };
 
     const togglePhase = (phaseId: string) => {

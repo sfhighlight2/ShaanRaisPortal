@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
-  CheckCircle, Clock, Lock, MessageSquare, FileText, Users, Activity, ClipboardList,
+  CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
+  Edit, Trash2, Plus, GripVertical
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  mockClients, mockProjects, mockPhases, mockTasks, mockDeliverables,
-  mockUpdates, mockQuestions, mockActivityLogs, getUserById,
-} from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase";
 import type { ClientStatus, PhaseStatus } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
@@ -31,34 +32,286 @@ const phaseStatusStyles: Record<PhaseStatus, string> = {
   locked: "bg-muted/50 text-muted-foreground",
 };
 
+interface ClientData {
+  id: string;
+  companyName: string;
+  primaryContactName: string;
+  primaryContactEmail: string;
+  phone?: string;
+  status: ClientStatus;
+  googleDriveUrl?: string;
+  airtableUrl?: string;
+  manager?: { id: string; firstName: string; lastName: string } | null;
+}
+
+interface Phase {
+  id: string;
+  name: string;
+  status: PhaseStatus;
+  sortOrder: number;
+}
+
+interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; }
+interface Deliverable { id: string; title: string; phaseId: string; phaseName?: string; visibleToClient: boolean; }
+interface Update { id: string; title: string; createdAt: string; }
+interface Question { id: string; subject: string; message: string; response?: string; status: string; }
+interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
+
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
   const { clientId } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
+  const [loading, setLoading] = useState(true);
 
-  // Default to first client if no ID
-  const client = mockClients.find((c) => c.id === clientId) || mockClients[0];
-  const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
-  const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
-  const currentPhase = phases.find((ph) => ph.status === "current");
-  const accountManager = getUserById(client.accountManagerId);
+  // Edit State
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    companyName: string; contactName: string; email: string; phone: string;
+    status: ClientStatus; driveUrl: string; airtableUrl: string; managerId: string;
+  } | null>(null);
+  const [managers, setManagers] = useState<{id: string, name: string}[]>([]);
+  const [savingClient, setSavingClient] = useState(false);
 
-  // Tasks
-  const allTasks = phases.flatMap((phase) =>
-    mockTasks.filter((t) => t.phaseId === phase.id).map((t) => ({ ...t, phaseName: phase.name }))
-  );
-  const pendingTasks = allTasks.filter((t) => t.status !== "completed");
-  const completedTasks = allTasks.filter((t) => t.status === "completed");
+  // Task State
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", status: "pending", phaseId: "" });
+  const [savingTask, setSavingTask] = useState(false);
 
-  // Deliverables
-  const deliverables = phases.flatMap((phase) =>
-    mockDeliverables.filter((d) => d.phaseId === phase.id).map((d) => ({ ...d, phaseName: phase.name }))
-  );
+  // Deliverable State
+  const [showDelivDialog, setShowDelivDialog] = useState(false);
+  const [editDeliv, setEditDeliv] = useState<Deliverable | null>(null);
+  const [delivForm, setDelivForm] = useState({ title: "", description: "", phaseId: "", visibleToClient: false });
+  const [savingDeliv, setSavingDeliv] = useState(false);
 
-  // Updates, questions, activity
-  const updates = mockUpdates.filter((u) => u.clientId === client.id);
-  const questions = mockQuestions.filter((q) => q.clientId === client.id);
-  const activities = mockActivityLogs.filter((a) => a.clientId === client.id).slice(0, 10);
+  const [client, setClient] = useState<ClientData | null>(null);
+  const [phases, setPhases] = useState<Phase[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [updates, setUpdates] = useState<Update[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+
+  const loadAll = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    try {
+      // Client + manager
+      const { data: c } = await supabase
+        .from("clients")
+        .select("*, manager:profiles!account_manager_id(first_name, last_name)")
+        .eq("id", clientId)
+        .single();
+
+      if (!c) { navigate("/admin/clients"); return; }
+
+      const managerRaw = Array.isArray(c.manager) ? c.manager[0] : c.manager;
+      setClient({
+        id: c.id,
+        companyName: c.company_name,
+        primaryContactName: c.primary_contact_name,
+        primaryContactEmail: c.primary_contact_email,
+        phone: c.phone ?? undefined,
+        status: c.status as ClientStatus,
+        googleDriveUrl: c.google_drive_url ?? undefined,
+        airtableUrl: c.airtable_url ?? undefined,
+        manager: managerRaw ? { id: managerRaw.id, firstName: managerRaw.first_name, lastName: managerRaw.last_name } : null,
+      });
+
+      // Load Managers for edit
+      const { data: mgrs } = await supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]);
+      if (mgrs) setManagers(mgrs.map(m => ({ id: m.id, name: `${m.first_name} ${m.last_name}` })));
+
+      // Project → phases
+      const { data: projects } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).limit(1);
+      const projectId = projects?.[0]?.id;
+
+      if (projectId) {
+        const { data: phasesData } = await supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order");
+        const formattedPhases: Phase[] = (phasesData || []).map(p => ({
+          id: p.id, name: p.name, status: p.status as PhaseStatus, sortOrder: p.sort_order,
+        }));
+        setPhases(formattedPhases);
+
+        const phaseIds = formattedPhases.map(p => p.id);
+        if (phaseIds.length > 0) {
+          const [tasksRes, deliverablesRes] = await Promise.all([
+            supabase.from("tasks").select("*").in("phase_id", phaseIds).order("sort_order"),
+            supabase.from("deliverables").select("*").in("phase_id", phaseIds),
+          ]);
+
+          setTasks((tasksRes.data || []).map(t => ({
+            id: t.id, title: t.title, taskType: t.task_type, status: t.status,
+            phaseId: t.phase_id, phaseName: formattedPhases.find(p => p.id === t.phase_id)?.name,
+          })));
+
+          setDeliverables((deliverablesRes.data || []).map(d => ({
+            id: d.id, title: d.title, phaseId: d.phase_id, visibleToClient: d.visible_to_client,
+            phaseName: formattedPhases.find(p => p.id === d.phase_id)?.name,
+          })));
+        }
+      }
+
+      // Updates, Questions, Activity
+      const [updatesRes, questionsRes, activityRes] = await Promise.all([
+        supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
+        supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("activity_logs").select("id, event_label, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(10),
+      ]);
+
+      setUpdates((updatesRes.data || []).map(u => ({ id: u.id, title: u.title, createdAt: u.created_at })));
+      setQuestions((questionsRes.data || []).map(q => ({
+        id: q.id, subject: q.subject, message: q.message, response: q.response ?? undefined, status: q.status,
+      })));
+      setActivities((activityRes.data || []).map(a => ({ id: a.id, eventLabel: a.event_label, createdAt: a.created_at })));
+    } catch (err) {
+      console.error("ClientDetail load error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId, navigate]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const handleEditClient = async () => {
+    if (!editForm || !clientId) return;
+    setSavingClient(true);
+    const { error } = await supabase.from("clients").update({
+      company_name: editForm.companyName,
+      primary_contact_name: editForm.contactName,
+      primary_contact_email: editForm.email || null,
+      phone: editForm.phone || null,
+      status: editForm.status,
+      google_drive_url: editForm.driveUrl || null,
+      airtable_url: editForm.airtableUrl || null,
+      account_manager_id: editForm.managerId === "unassigned" ? null : editForm.managerId,
+    }).eq("id", clientId);
+    setSavingClient(false);
+    
+    if (!error) {
+      setShowEditDialog(false);
+      loadAll();
+    } else {
+      console.error(error);
+    }
+  };
+
+  const openEdit = () => {
+    if (!client) return;
+    setEditForm({
+      companyName: client.companyName,
+      contactName: client.primaryContactName,
+      email: client.primaryContactEmail,
+      phone: client.phone || "",
+      status: client.status,
+      driveUrl: client.googleDriveUrl || "",
+      airtableUrl: client.airtableUrl || "",
+      managerId: client.manager?.id || "unassigned",
+    });
+    setShowEditDialog(true);
+  };
+
+  const openTaskDialog = (task?: Task) => {
+    if (task) {
+      setEditTask(task);
+      setTaskForm({ title: task.title, taskType: task.taskType, status: task.status, phaseId: task.phaseId });
+    } else {
+      setEditTask(null);
+      setTaskForm({ title: "", taskType: "review", status: "pending", phaseId: phases[0]?.id || "" });
+    }
+    setShowTaskDialog(true);
+  };
+
+  const saveTask = async () => {
+    if (!taskForm.title || !taskForm.phaseId) return;
+    setSavingTask(true);
+    let error;
+    
+    // Auto-calculate sort_order for new tasks based on current max
+    const phaseTasks = tasks.filter(t => t.phaseId === taskForm.phaseId);
+    let sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
+
+    if (editTask) {
+      const { error: err } = await supabase.from("tasks").update({
+        title: taskForm.title, task_type: taskForm.taskType,
+        status: taskForm.status, phase_id: taskForm.phaseId
+      }).eq("id", editTask.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from("tasks").insert({
+        title: taskForm.title, task_type: taskForm.taskType,
+        status: taskForm.status, phase_id: taskForm.phaseId,
+        sort_order: sortOrder
+      });
+      error = err;
+    }
+    setSavingTask(false);
+    if (!error) {
+      setShowTaskDialog(false);
+      loadAll();
+    } else console.error(error);
+  };
+
+  const deleteTask = async (id: string) => {
+    if (!confirm("Delete this task?")) return;
+    const { error } = await supabase.from("tasks").delete().eq("id", id);
+    if (!error) loadAll();
+  };
+
+  const openDelivDialog = (d?: Deliverable) => {
+    if (d) {
+      setEditDeliv(d);
+      setDelivForm({ title: d.title, description: "", phaseId: d.phaseId, visibleToClient: d.visibleToClient });
+    } else {
+      setEditDeliv(null);
+      setDelivForm({ title: "", description: "", phaseId: phases[0]?.id || "", visibleToClient: false });
+    }
+    setShowDelivDialog(true);
+  };
+
+  const saveDeliv = async () => {
+    if (!delivForm.title || !delivForm.phaseId) return;
+    setSavingDeliv(true);
+    let error;
+
+    if (editDeliv) {
+      const { error: err } = await supabase.from("deliverables").update({
+        title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
+        // Add description to update if column exists, skipping for now
+      }).eq("id", editDeliv.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from("deliverables").insert({
+        title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
+      });
+      error = err;
+    }
+    setSavingDeliv(false);
+    if (!error) {
+      setShowDelivDialog(false);
+      loadAll();
+    } else console.error(error);
+  };
+
+  const deleteDeliv = async (id: string) => {
+    if (!confirm("Delete this deliverable?")) return;
+    const { error } = await supabase.from("deliverables").delete().eq("id", id);
+    if (!error) loadAll();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!client) return null;
+
+  const currentPhase = phases.find(p => p.status === "current");
+  const completedTasks = tasks.filter(t => t.status === "completed");
+  const openQuestions = questions.filter(q => q.status === "open");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -80,71 +333,178 @@ const AdminClientDetail: React.FC = () => {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2">
-          <MoreHorizontal className="h-4 w-4" /> Actions
+        <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
+          <MoreHorizontal className="h-4 w-4" /> Edit Client
         </Button>
       </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Package</p>
-            <p className="text-sm font-medium text-foreground mt-1 truncate">{project?.projectName || "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Phase</p>
-            <p className="text-sm font-medium text-foreground mt-1">{currentPhase?.name || "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Tasks</p>
-            <p className="text-sm font-medium text-foreground mt-1">{completedTasks.length}/{allTasks.length} done</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Manager</p>
-            <p className="text-sm font-medium text-foreground mt-1">{accountManager?.firstName || "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Questions</p>
-            <p className="text-sm font-medium text-foreground mt-1">{questions.filter((q) => q.status === "open").length} open</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Package</p>
+          <p className="text-sm font-medium text-foreground mt-1 truncate">—</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Phase</p>
+          <p className="text-sm font-medium text-foreground mt-1">{currentPhase?.name || "—"}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Tasks</p>
+          <p className="text-sm font-medium text-foreground mt-1">{completedTasks.length}/{tasks.length} done</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Manager</p>
+          <p className="text-sm font-medium text-foreground mt-1">{client.manager?.firstName || "—"}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Questions</p>
+          <p className="text-sm font-medium text-foreground mt-1">{openQuestions.length} open</p>
+        </CardContent></Card>
       </div>
 
       {/* Phase Tracker */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium">Project Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {phases.map((phase, i) => (
-              <React.Fragment key={phase.id}>
-                <div className="flex flex-col items-center min-w-[90px] shrink-0">
-                  <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}>
-                    {phase.status === "completed" ? <CheckCircle className="h-3.5 w-3.5" /> :
-                      phase.status === "locked" ? <Lock className="h-3 w-3" /> : i + 1}
+      {phases.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Project Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {phases.map((phase, i) => (
+                <React.Fragment key={phase.id}>
+                  <div className="flex flex-col items-center min-w-[90px] shrink-0">
+                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}>
+                      {phase.status === "completed" ? <CheckCircle className="h-3.5 w-3.5" /> :
+                        phase.status === "locked" ? <Lock className="h-3 w-3" /> : i + 1}
+                    </div>
+                    <p className={`text-xs mt-1.5 text-center ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                      {phase.name}
+                    </p>
                   </div>
-                  <p className={`text-xs mt-1.5 text-center ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                    {phase.name}
-                  </p>
+                  {i < phases.length - 1 && (
+                    <div className={`h-0.5 w-4 shrink-0 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-muted" : "bg-primary"}`} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Client Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
+          {editForm && (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Company Name</label>
+                <Input value={editForm.companyName} onChange={e => setEditForm({ ...editForm, companyName: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><label className="text-sm font-medium">Contact Name</label><Input value={editForm.contactName} onChange={e => setEditForm(f => f ? ({ ...f, contactName: e.target.value }) : null)} /></div>
+                <div className="space-y-1.5"><label className="text-sm font-medium">Email</label><Input type="email" value={editForm.email} onChange={e => setEditForm(f => f ? ({ ...f, email: e.target.value }) : null)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><label className="text-sm font-medium">Phone</label><Input value={editForm.phone} onChange={e => setEditForm(f => f ? ({ ...f, phone: e.target.value }) : null)} /></div>
+                <div className="space-y-1.5"><label className="text-sm font-medium">Status</label>
+                  <Select value={editForm.status} onValueChange={v => setEditForm(f => f ? ({ ...f, status: v as ClientStatus }) : null)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
+                        <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                {i < phases.length - 1 && (
-                  <div className={`h-0.5 w-4 shrink-0 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-muted" : "bg-primary"}`} />
-                )}
-              </React.Fragment>
-            ))}
+              </div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Google Drive URL</label><Input value={editForm.driveUrl} onChange={e => setEditForm(f => f ? ({ ...f, driveUrl: e.target.value }) : null)} /></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Airtable URL</label><Input value={editForm.airtableUrl} onChange={e => setEditForm(f => f ? ({ ...f, airtableUrl: e.target.value }) : null)} /></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Account Manager</label>
+                <Select value={editForm.managerId} onValueChange={v => setEditForm(f => f ? ({ ...f, managerId: v }) : null)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {managers.map(m => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button onClick={handleEditClient} disabled={savingClient}>{savingClient ? "Saving..." : "Save Changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shared Task Form Dialog */}
+      <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{editTask ? "Edit Task" : "New Task"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5"><label className="text-sm font-medium">Task Title</label><Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Gather Requirements" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Phase</label>
+              <Select value={taskForm.phaseId} onValueChange={v => setTaskForm(f => ({ ...f, phaseId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>{phases.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><label className="text-sm font-medium">Task Type</label>
+                <Select value={taskForm.taskType} onValueChange={v => setTaskForm(f => ({ ...f, taskType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["review", "upload", "approval", "form", "general"]).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Status</label>
+                <Select value={taskForm.status} onValueChange={v => setTaskForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["pending", "in_progress", "completed", "failed"]).map(s => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTaskDialog(false)}>Cancel</Button>
+            <Button onClick={saveTask} disabled={savingTask}>{savingTask ? "Saving..." : "Save Task"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shared Deliverable Form Dialog */}
+      <Dialog open={showDelivDialog} onOpenChange={setShowDelivDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{editDeliv ? "Edit Deliverable" : "New Deliverable"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5"><label className="text-sm font-medium">Title</label><Input value={delivForm.title} onChange={e => setDelivForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Audit Report" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Phase</label>
+              <Select value={delivForm.phaseId} onValueChange={v => setDelivForm(f => ({ ...f, phaseId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>{phases.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/40 mt-2">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium">Visible to Client</label>
+                <p className="text-xs text-muted-foreground">Will the client see this document?</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={delivForm.visibleToClient} onChange={e => setDelivForm(f => ({ ...f, visibleToClient: e.target.checked }))} />
+                <div className="w-9 h-5 bg-muted-foreground/30 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDelivDialog(false)}>Cancel</Button>
+            <Button onClick={saveDeliv} disabled={savingDeliv}>{savingDeliv ? "Saving..." : "Save Deliverable"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -169,20 +529,28 @@ const AdminClientDetail: React.FC = () => {
                     <a href={client.googleDriveUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">Google Drive Folder</a>
                   </div>
                 )}
+                {client.airtableUrl && (
+                  <div className="flex items-center gap-3">
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    <a href={client.airtableUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">Airtable Workspace</a>
+                  </div>
+                )}
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-base font-medium">Team</CardTitle></CardHeader>
               <CardContent>
-                {accountManager && (
+                {client.manager ? (
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{accountManager.firstName[0]}{accountManager.lastName[0]}</div>
+                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                      {client.manager.firstName[0]}{client.manager.lastName[0]}
+                    </div>
                     <div>
-                      <p className="text-sm font-medium">{accountManager.firstName} {accountManager.lastName}</p>
+                      <p className="text-sm font-medium">{client.manager.firstName} {client.manager.lastName}</p>
                       <p className="text-xs text-muted-foreground">Account Manager</p>
                     </div>
                   </div>
-                )}
+                ) : <p className="text-sm text-muted-foreground">No account manager assigned.</p>}
               </CardContent>
             </Card>
           </div>
@@ -191,7 +559,7 @@ const AdminClientDetail: React.FC = () => {
             <CardContent>
               {updates.length === 0 ? <p className="text-sm text-muted-foreground">No updates yet.</p> : (
                 <div className="space-y-3">
-                  {updates.slice(0, 3).map((u) => (
+                  {updates.map(u => (
                     <div key={u.id} className="border-l-2 border-primary/30 pl-3">
                       <p className="text-sm font-medium">{u.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{new Date(u.createdAt).toLocaleDateString()}</p>
@@ -205,16 +573,25 @@ const AdminClientDetail: React.FC = () => {
 
         <TabsContent value="tasks" className="mt-6">
           <Card>
-            <CardContent className="p-4">
-              {allTasks.length === 0 ? <p className="text-sm text-muted-foreground py-4">No tasks.</p> : (
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-medium">Project Tasks</CardTitle>
+              <Button size="sm" onClick={() => openTaskDialog()}><Plus className="h-4 w-4 mr-2" /> New Task</Button>
+            </CardHeader>
+            <CardContent>
+              {tasks.length === 0 ? <p className="text-sm text-muted-foreground py-4">No tasks.</p> : (
                 <div className="space-y-2">
-                  {allTasks.map((t) => (
-                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                  {tasks.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
                       <div className={`h-6 w-6 rounded-full flex items-center justify-center ${t.status === "completed" ? "bg-success/10" : "bg-muted"}`}>
                         {t.status === "completed" ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Clock className="h-3 w-3 text-muted-foreground" />}
                       </div>
-                      <div className="flex-1"><p className="text-sm">{t.title}</p><p className="text-xs text-muted-foreground">{t.phaseName}</p></div>
-                      <Badge variant="outline" className="text-[10px]">{t.taskType}</Badge>
+                      <div className="flex-1"><p className="text-sm font-medium">{t.title}</p><p className="text-xs text-muted-foreground">{t.phaseName}</p></div>
+                      <Badge variant="outline" className="text-[10px] hidden md:inline-flex">{t.taskType}</Badge>
+                      <Badge className={`text-[10px] hidden md:inline-flex ${t.status === "completed" ? 'bg-success/10 text-success hover:bg-success/20' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{t.status}</Badge>
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTaskDialog(t)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteTask(t.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -225,14 +602,22 @@ const AdminClientDetail: React.FC = () => {
 
         <TabsContent value="deliverables" className="mt-6">
           <Card>
-            <CardContent className="p-4">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-medium">Deliverables</CardTitle>
+              <Button size="sm" onClick={() => openDelivDialog()}><Plus className="h-4 w-4 mr-2" /> New Deliverable</Button>
+            </CardHeader>
+            <CardContent>
               {deliverables.length === 0 ? <p className="text-sm text-muted-foreground py-4">No deliverables.</p> : (
                 <div className="space-y-2">
-                  {deliverables.map((d) => (
-                    <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                  {deliverables.map(d => (
+                    <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
                       <FileText className="h-4 w-4 text-primary" />
-                      <div className="flex-1"><p className="text-sm">{d.title}</p><p className="text-xs text-muted-foreground">{d.phaseName}</p></div>
-                      <Badge variant="outline" className="text-[10px]">{d.visibleToClient ? "Visible" : "Internal"}</Badge>
+                      <div className="flex-1"><p className="text-sm font-medium">{d.title}</p><p className="text-xs text-muted-foreground">{d.phaseName}</p></div>
+                      <Badge variant="outline" className={`text-[10px] hidden md:inline-flex ${d.visibleToClient ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}>{d.visibleToClient ? "Visible to Client" : "Internal"}</Badge>
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDelivDialog(d)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDeliv(d.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -246,7 +631,7 @@ const AdminClientDetail: React.FC = () => {
             <CardContent className="p-4">
               {activities.length === 0 ? <p className="text-sm text-muted-foreground py-4">No activity recorded.</p> : (
                 <div className="space-y-3">
-                  {activities.map((a) => (
+                  {activities.map(a => (
                     <div key={a.id} className="flex items-center gap-3 text-sm">
                       <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
                       <span className="flex-1">{a.eventLabel}</span>
@@ -264,7 +649,7 @@ const AdminClientDetail: React.FC = () => {
             <CardContent className="p-4">
               {questions.length === 0 ? <p className="text-sm text-muted-foreground py-4">No questions.</p> : (
                 <div className="space-y-3">
-                  {questions.map((q) => (
+                  {questions.map(q => (
                     <div key={q.id} className="p-3 rounded-lg border">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium">{q.subject}</p>

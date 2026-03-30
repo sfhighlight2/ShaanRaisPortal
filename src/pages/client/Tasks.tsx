@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import {
-  mockClients, mockProjects, mockPhases, mockTasks,
-} from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
 import type { TaskType, TaskStatus } from "@/lib/types";
 
 const taskTypeIcons: Record<TaskType, React.ElementType> = {
@@ -42,17 +40,26 @@ const statusStyles: Record<TaskStatus, { bg: string; text: string }> = {
 const ClientTasks: React.FC = () => {
   const [activeTab, setActiveTab] = useState("pending");
   const { toast } = useToast();
+  
+  const { phases, tasks, loading } = useClientData();
 
-  const client = mockClients[0];
-  const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
-  const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
-  // Get all client-visible tasks
-  const allTasks = phases.flatMap((phase) =>
-    mockTasks
-      .filter((t) => t.phaseId === phase.id && t.visibleToClient)
-      .map((t) => ({ ...t, phaseName: phase.name, phaseStatus: phase.status }))
-  );
+  // Get all client-visible tasks with phase info appended
+  const allTasks = tasks.map(t => {
+    const phase = phases.find(p => p.id === t.phaseId);
+    return {
+      ...t,
+      phaseName: phase?.name || "Unknown Phase",
+      phaseStatus: phase?.status || "upcoming"
+    };
+  });
 
   const pendingTasks = allTasks.filter((t) => t.status !== "completed");
   const completedTasks = allTasks.filter((t) => t.status === "completed");

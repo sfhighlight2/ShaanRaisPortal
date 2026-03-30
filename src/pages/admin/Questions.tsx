@@ -1,27 +1,116 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Send, Clock, CheckCircle, User } from "lucide-react";
+import { MessageSquare, Send, Clock, CheckCircle, User, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockQuestions, mockClients, getUserById } from "@/lib/mock-data";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import type { Question, Client } from "@/lib/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const AdminQuestions: React.FC = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("open");
-  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
-  const [response, setResponse] = useState("");
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [responseText, setResponseText] = useState("");
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const openQuestions = mockQuestions.filter((q) => q.status === "open");
-  const answeredQuestions = mockQuestions.filter((q) => q.status === "answered");
+  const loadData = React.useCallback(async () => {
+    try {
+      if (!isSupabaseConfigured) return;
+      const [questionsRes, clientsRes] = await Promise.all([
+        supabase.from("questions").select("*, profiles:responded_by(*)").order("created_at", { ascending: false }),
+        supabase.from("clients").select("*"),
+      ]);
+      if (questionsRes.error) throw questionsRes.error;
+      if (clientsRes.error) throw clientsRes.error;
 
+      setQuestions((questionsRes.data || []).map(q => ({
+        id: q.id,
+        clientId: q.client_id,
+        projectId: q.project_id,
+        subject: q.subject,
+        message: q.message,
+        attachmentUrl: q.attachment_url,
+        status: q.status,
+        response: q.response,
+        respondedBy: q.responded_by,
+        responderProfile: q.profiles,
+        createdAt: q.created_at,
+      })));
+      setClients((clientsRes.data || []).map(c => ({
+        id: c.id,
+        companyName: c.company_name,
+        primaryContactName: c.primary_contact_name,
+        primaryContactEmail: c.primary_contact_email,
+        phone: c.phone,
+        status: c.status,
+        accountManagerId: c.account_manager_id,
+        googleDriveUrl: c.google_drive_url,
+        notes: c.notes,
+        createdAt: c.created_at,
+      })));
+    } catch (err) {
+      console.error("Error loading questions data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const openQuestions = questions.filter((q) => q.status === "open");
+  const answeredQuestions = questions.filter((q) => q.status === "answered");
   const displayQuestions = activeTab === "open" ? openQuestions : answeredQuestions;
 
-  const handleRespond = (questionId: string) => {
-    // Mock response
-    setResponse("");
-    setSelectedQuestion(null);
+  const handleSendResponse = async () => {
+    if (!selectedQuestion || !responseText.trim() || !user) return;
+    try {
+      const { error } = await supabase.from("questions").update({
+        status: "answered",
+        response: responseText.trim(),
+        responded_by: user.id,
+        responded_at: new Date().toISOString()
+      }).eq("id", selectedQuestion.id);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Response Sent",
+        description: "The client has been notified of your response.",
+      });
+      setResponseText("");
+      setSelectedQuestion(null);
+      loadData();
+    } catch (err) {
+      console.error("Error sending response:", err);
+      toast({
+        title: "Error",
+        description: "Failed to send response.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this question?")) return;
+    try {
+      const { error } = await supabase.from("questions").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Deleted", description: "Question deleted successfully." });
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to delete question.", variant: "destructive" });
+    }
   };
 
   return (
@@ -31,11 +120,10 @@ const AdminQuestions: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-1">Respond to client questions and inquiries.</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-2xl font-semibold text-foreground">{mockQuestions.length}</p>
+            <p className="text-2xl font-semibold text-foreground">{questions.length}</p>
             <p className="text-xs text-muted-foreground">Total Questions</p>
           </CardContent>
         </Card>
@@ -70,7 +158,9 @@ const AdminQuestions: React.FC = () => {
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
-          {displayQuestions.length === 0 ? (
+          {loading ? (
+            <p className="text-center text-muted-foreground">Loading...</p>
+          ) : displayQuestions.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -82,9 +172,8 @@ const AdminQuestions: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {displayQuestions.map((question, i) => {
-                const client = mockClients.find((c) => c.id === question.clientId);
-                const responder = question.respondedBy ? getUserById(question.respondedBy) : null;
-                const isExpanded = selectedQuestion === question.id;
+                const client = clients.find((c) => c.id === question.clientId);
+                const isExpanded = selectedQuestion?.id === question.id;
 
                 return (
                   <motion.div
@@ -107,9 +196,16 @@ const AdminQuestions: React.FC = () => {
                               </p>
                             </div>
                           </div>
-                          <Badge className={`text-[10px] ${question.status === "open" ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
-                            {question.status}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className={`text-[10px] ${question.status === "open" ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                              {question.status}
+                            </Badge>
+                            {user?.role === "admin" && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteQuestion(question.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         <p className="text-sm text-muted-foreground mb-4">{question.message}</p>
@@ -118,8 +214,8 @@ const AdminQuestions: React.FC = () => {
                           <div className="bg-muted/50 rounded-lg p-3 mb-4">
                             <p className="text-xs text-muted-foreground mb-1">Response</p>
                             <p className="text-sm">{question.response}</p>
-                            {responder && (
-                              <p className="text-xs text-muted-foreground mt-2">— {responder.firstName} {responder.lastName}</p>
+                            {question.responderProfile && (
+                              <p className="text-xs text-muted-foreground mt-2">— {question.responderProfile.first_name} {question.responderProfile.last_name}</p>
                             )}
                           </div>
                         )}
@@ -130,19 +226,19 @@ const AdminQuestions: React.FC = () => {
                               <div className="space-y-3">
                                 <Textarea
                                   placeholder="Type your response..."
-                                  value={response}
-                                  onChange={(e) => setResponse(e.target.value)}
+                                  value={responseText}
+                                  onChange={(e) => setResponseText(e.target.value)}
                                   rows={3}
                                 />
                                 <div className="flex justify-end gap-2">
                                   <Button variant="outline" size="sm" onClick={() => setSelectedQuestion(null)}>Cancel</Button>
-                                  <Button size="sm" className="gap-1.5" onClick={() => handleRespond(question.id)}>
+                                  <Button size="sm" className="gap-1.5" onClick={handleSendResponse}>
                                     <Send className="h-3.5 w-3.5" /> Send Response
                                   </Button>
                                 </div>
                               </div>
                             ) : (
-                              <Button variant="outline" size="sm" onClick={() => setSelectedQuestion(question.id)}>
+                              <Button variant="outline" size="sm" onClick={() => setSelectedQuestion(question)}>
                                 Respond
                               </Button>
                             )}

@@ -5,9 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import {
-  mockClients, mockProjects, mockPhases, mockDeliverables,
-} from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
 import type { PhaseStatus } from "@/lib/types";
 
 const phaseStatusIcons: Record<PhaseStatus, React.ElementType> = {
@@ -19,13 +17,19 @@ const phaseStatusIcons: Record<PhaseStatus, React.ElementType> = {
 
 const ClientDeliverables: React.FC = () => {
   const { toast } = useToast();
-  const client = mockClients[0];
-  const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
-  const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
+  const { phases, deliverables, loading } = useClientData();
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   const deliverablesByPhase = phases.map((phase) => ({
     phase,
-    deliverables: mockDeliverables.filter((d) => d.phaseId === phase.id && d.visibleToClient),
+    deliverables: deliverables.filter((d) => d.phaseId === phase.id),
   })).filter((group) => group.deliverables.length > 0 || group.phase.status !== "locked");
 
   const totalDeliverables = deliverablesByPhase.reduce((acc, g) => acc + g.deliverables.length, 0);

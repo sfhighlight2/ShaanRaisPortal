@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { mockClients, mockDocuments } from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
 
 const documentTypeIcons: Record<string, React.ElementType> = {
   contract: FileCheck,
@@ -23,8 +23,19 @@ const documentTypeLabels: Record<string, string> = {
 
 const ClientDocuments: React.FC = () => {
   const { toast } = useToast();
-  const client = mockClients[0];
-  const documents = mockDocuments.filter((d) => d.clientId === client.id && d.visibleToClient);
+  const { client, documents, loading } = useClientData();
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!client) {
+    return null;
+  }
 
   const contracts = documents.filter((d) => d.documentType === "contract");
   const sows = documents.filter((d) => d.documentType === "sow");

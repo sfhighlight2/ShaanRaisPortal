@@ -12,10 +12,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  mockClients, mockProjects, mockPhases, mockTasks,
-  mockDeliverables, mockUpdates, getUserById,
-} from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
+import { Link } from "react-router-dom";
 import type { TaskType, PhaseStatus } from "@/lib/types";
 
 const taskTypeIcons: Record<TaskType, React.ElementType> = {
@@ -36,22 +34,46 @@ const phaseStatusStyles: Record<PhaseStatus, string> = {
 
 const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const client = mockClients[0];
-  const project = mockProjects.find((p) => p.clientId === client.id && p.isMainProject);
-  const phases = mockPhases.filter((ph) => ph.projectId === project?.id).sort((a, b) => a.sortOrder - b.sortOrder);
-  const currentPhase = phases.find((ph) => ph.status === "current");
-  const accountManager = getUserById(client.accountManagerId);
+  const { 
+    client, 
+    project, 
+    phases, 
+    tasks, 
+    deliverables,
+    updates, 
+    accountManager, 
+    loading 
+  } = useClientData();
 
-  const pendingTasks = mockTasks.filter(
-    (t) => t.phaseId === currentPhase?.id && t.visibleToClient && t.status !== "completed"
-  );
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!client || !project) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-muted-foreground">
+          No active project found for your account. Please contact your account manager.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Current Phase Logic
+  const currentPhase = phases.find((p) => p.status === "current") || phases[0];
+  
+  // Tasks Logic
+  const allTasks = tasks;
+  const pendingTasks = allTasks
+    .filter((t) => t.status === "pending" || t.status === "in_progress")
+    .slice(0, 3);
   const nextTask = pendingTasks[0];
 
-  const deliverables = mockDeliverables.filter(
-    (d) => d.phaseId === currentPhase?.id && d.visibleToClient
-  );
-
-  const updates = mockUpdates.filter((u) => u.clientId === client.id && u.visibleToClient).slice(0, 2);
+  const recentUpdates = updates.slice(0, 2);
 
   return (
     <div className="space-y-8 animate-fade-in">

@@ -6,7 +6,6 @@ import { Bell, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { mockNotifications } from "@/lib/mock-data";
 
 interface Notification {
   id: string;
@@ -44,13 +43,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [open, setOpen] = useState(false);
 
   const loadNotifications = async () => {
-    if (!isSupabaseConfigured || !user) {
-      setNotifications(mockNotifications.map(n => ({
-        id: n.id, title: n.title, message: n.message, read: n.read,
-        created_at: n.createdAt, link: n.link,
-      })));
-      return;
-    }
+    if (!user) return;
     const { data } = await supabase
       .from("notifications")
       .select("*")

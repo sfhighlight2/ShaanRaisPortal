@@ -114,6 +114,10 @@ export interface Update {
   visibleToClient: boolean;
   createdBy: string;
   createdAt: string;
+  _author?: {
+    firstName: string;
+    lastName: string;
+  };
 }
 
 export interface Question {
@@ -126,6 +130,10 @@ export interface Question {
   status: QuestionStatus;
   response?: string;
   respondedBy?: string;
+  responderProfile?: {
+    first_name: string;
+    last_name: string;
+  };
   createdAt: string;
 }
 

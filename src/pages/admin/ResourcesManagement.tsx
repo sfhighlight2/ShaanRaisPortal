@@ -25,7 +25,7 @@ import {
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { mockResources } from "@/lib/mock-data";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { Resource, ResourceType, UserRole } from "@/lib/types";
 
 const typeIcons: Record<ResourceType, React.ElementType> = {
@@ -53,9 +53,36 @@ const typeColors: Record<ResourceType, string> = {
 };
 
 const AdminResourcesManagement: React.FC = () => {
-    const [resources, setResources] = useState<Resource[]>(
-        [...mockResources].sort((a, b) => a.displayOrder - b.displayOrder)
-    );
+    const [resources, setResources] = useState<Resource[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadData = React.useCallback(async () => {
+        try {
+            if (!isSupabaseConfigured) return;
+            const { data, error } = await supabase.from("resources").select("*").order("display_order");
+            if (error) throw error;
+            
+            setResources((data || []).map(r => ({
+                id: r.id, 
+                title: r.title, 
+                description: r.description, 
+                category: r.category, 
+                type: r.type, 
+                url: r.url, 
+                filePath: r.file_path, 
+                displayOrder: r.display_order, 
+                visibleToRole: r.visible_to_roles
+            })));
+        } catch (err) {
+            console.error("Error loading resources:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // UI state
     const [searchQuery, setSearchQuery] = useState("");
@@ -121,72 +148,79 @@ const AdminResourcesManagement: React.FC = () => {
         setDialogOpen(true);
     };
 
-    const saveResource = () => {
+    const handleSaveResource = async () => {
         if (!formTitle.trim() || !formCategory.trim()) return;
         const visibleToRole: UserRole[] = ["admin"];
         if (formVisibleManager) visibleToRole.push("manager", "team_member");
 
-        if (editingResource) {
-            setResources((prev) =>
-                prev.map((r) =>
-                    r.id === editingResource.id
-                        ? {
-                            ...r,
-                            title: formTitle.trim(),
-                            description: formDescription.trim() || undefined,
-                            category: formCategory.trim(),
-                            type: formType,
-                            url: formType !== "file" ? formUrl.trim() || undefined : undefined,
-                            filePath: formType === "file" ? formUrl.trim() || undefined : undefined,
-                            visibleToRole,
-                        }
-                        : r
-                )
-            );
-        } else {
-            const maxOrder = resources.reduce((max, r) => Math.max(max, r.displayOrder), 0);
-            setResources((prev) => [
-                ...prev,
-                {
-                    id: `r-${Date.now()}`,
+        try {
+            if (editingResource) {
+                const { error } = await supabase.from("resources").update({
                     title: formTitle.trim(),
-                    description: formDescription.trim() || undefined,
+                    description: formDescription.trim() || null,
                     category: formCategory.trim(),
                     type: formType,
-                    url: formType !== "file" ? formUrl.trim() || undefined : undefined,
-                    filePath: formType === "file" ? formUrl.trim() || undefined : undefined,
-                    displayOrder: maxOrder + 1,
-                    visibleToRole,
-                },
-            ]);
+                    url: formType !== "file" ? formUrl.trim() || null : null,
+                    file_path: formType === "file" ? formUrl.trim() || null : null,
+                    visible_to_roles: visibleToRole,
+                }).eq("id", editingResource.id);
+                if (error) throw error;
+            } else {
+                const categoryResources = resources.filter((r) => r.category === formCategory.trim());
+                const maxOrder = categoryResources.reduce((max, r) => Math.max(max, r.displayOrder), 0);
+                
+                const { error } = await supabase.from("resources").insert({
+                    title: formTitle.trim(),
+                    description: formDescription.trim() || null,
+                    category: formCategory.trim(),
+                    type: formType,
+                    url: formType !== "file" ? formUrl.trim() || null : null,
+                    file_path: formType === "file" ? formUrl.trim() || null : null,
+                    display_order: maxOrder + 1,
+                    visible_to_roles: visibleToRole,
+                });
+                if (error) throw error;
+            }
+            loadData();
+            setDialogOpen(false);
+        } catch (error) {
+            console.error("Error saving resource:", error);
         }
-        setDialogOpen(false);
     };
 
-    const moveResource = (id: string, direction: "up" | "down") => {
-        setResources((prev) => {
-            const sorted = [...prev].sort((a, b) => a.displayOrder - b.displayOrder);
-            const idx = sorted.findIndex((r) => r.id === id);
-            if ((direction === "up" && idx === 0) || (direction === "down" && idx === sorted.length - 1)) return prev;
-            const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-            const tempOrder = sorted[idx].displayOrder;
-            sorted[idx] = { ...sorted[idx], displayOrder: sorted[swapIdx].displayOrder };
-            sorted[swapIdx] = { ...sorted[swapIdx], displayOrder: tempOrder };
-            return sorted;
-        });
+    const moveResource = async (resourceId: string, category: string, direction: "up" | "down") => {
+        const catResources = resources.filter((r) => r.category === category).sort((a, b) => a.displayOrder - b.displayOrder);
+        const idx = catResources.findIndex((r) => r.id === resourceId);
+        if ((direction === "up" && idx === 0) || (direction === "down" && idx === catResources.length - 1)) return;
+        
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        const currentRes = catResources[idx];
+        const targetRes = catResources[swapIdx];
+
+        try {
+            await Promise.all([
+                supabase.from("resources").update({ display_order: targetRes.displayOrder }).eq("id", currentRes.id),
+                supabase.from("resources").update({ display_order: currentRes.displayOrder }).eq("id", targetRes.id),
+            ]);
+            loadData();
+        } catch (err) {
+            console.error("Error moving resource:", err);
+        }
     };
 
-    const toggleVisibility = (id: string) => {
-        setResources((prev) =>
-            prev.map((r) => {
-                if (r.id !== id) return r;
-                const hasManager = r.visibleToRole.includes("manager");
-                const visibleToRole: UserRole[] = hasManager
-                    ? r.visibleToRole.filter((role) => role !== "manager" && role !== "team_member")
-                    : [...r.visibleToRole, "manager", "team_member"];
-                return { ...r, visibleToRole };
-            })
-        );
+    const toggleVisibility = async (id: string, currentRoles: UserRole[]) => {
+        const hasManager = currentRoles.includes("manager");
+        const visibleToRole: UserRole[] = hasManager
+            ? currentRoles.filter((role) => role !== "manager" && role !== "team_member")
+            : [...currentRoles, "manager", "team_member"];
+        
+        try {
+            const { error } = await supabase.from("resources").update({ visible_to_roles: visibleToRole }).eq("id", id);
+            if (error) throw error;
+            loadData();
+        } catch (err) {
+            console.error("Error toggling visibility:", err);
+        }
     };
 
     const requestDelete = (id: string) => {
@@ -194,12 +228,18 @@ const AdminResourcesManagement: React.FC = () => {
         setDeleteDialogOpen(true);
     };
 
-    const confirmDelete = () => {
-        if (deleteId) {
-            setResources((prev) => prev.filter((r) => r.id !== deleteId));
+    const confirmDelete = async () => {
+        if (!deleteId) return;
+        try {
+            const { error } = await supabase.from("resources").delete().eq("id", deleteId);
+            if (error) throw error;
+            loadData();
+        } catch (err) {
+            console.error("Error deleting resource:", err);
+        } finally {
+            setDeleteDialogOpen(false);
+            setDeleteId(null);
         }
-        setDeleteDialogOpen(false);
-        setDeleteId(null);
     };
 
     return (
@@ -290,7 +330,7 @@ const AdminResourcesManagement: React.FC = () => {
                                                     <Badge className={`text-[10px] ${typeColors[resource.type]}`}>{typeLabels[resource.type]}</Badge>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleVisibility(resource.id)}>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleVisibility(resource.id, resource.visibleToRole)}>
                                                         {isVisible ? (
                                                             <Eye className="h-3.5 w-3.5 text-success" />
                                                         ) : (
@@ -300,10 +340,10 @@ const AdminResourcesManagement: React.FC = () => {
                                                 </TableCell>
                                                 <TableCell className="text-right pr-5">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveResource(resource.id, "up")} disabled={idx === 0}>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveResource(resource.id, resource.category, "up")} disabled={idx === 0}>
                                                             <ArrowUp className="h-3 w-3" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveResource(resource.id, "down")} disabled={idx === filteredResources.length - 1}>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveResource(resource.id, resource.category, "down")} disabled={idx === filteredResources.length - 1}>
                                                             <ArrowDown className="h-3 w-3" />
                                                         </Button>
                                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(resource)}>
@@ -382,7 +422,7 @@ const AdminResourcesManagement: React.FC = () => {
                         <DialogClose asChild>
                             <Button variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button onClick={saveResource} disabled={!formTitle.trim() || !formCategory.trim()}>
+                        <Button onClick={handleSaveResource} disabled={!formTitle.trim() || !formCategory.trim()}>
                             {editingResource ? "Save Changes" : "Add Resource"}
                         </Button>
                     </DialogFooter>

@@ -3,13 +3,18 @@ import { motion } from "framer-motion";
 import { Bell, MessageSquare, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { mockClients, mockUpdates, getUserById } from "@/lib/mock-data";
+import { useClientData } from "@/hooks/useClientData";
 
 const ClientUpdates: React.FC = () => {
-  const client = mockClients[0];
-  const updates = mockUpdates
-    .filter((u) => u.clientId === client.id && u.visibleToClient)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const { updates, loading } = useClientData();
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -69,7 +74,7 @@ const ClientUpdates: React.FC = () => {
 
               <div className="space-y-6">
                 {updates.map((update, i) => {
-                  const author = getUserById(update.createdBy);
+                  const author = update._author;
                   const date = new Date(update.createdAt);
 
                   return (

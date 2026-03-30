@@ -70,18 +70,24 @@ function AppRoutes() {
         <Route path="/profile" element={<ClientProfile />} />
         <Route path="/help" element={<HelpCenter />} />
 
-        {/* Admin routes */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/clients" element={<AdminClients />} />
-        <Route path="/admin/clients/:clientId" element={<AdminClientDetail />} />
-        <Route path="/admin/templates" element={<AdminTemplates />} />
-        <Route path="/admin/questions" element={<AdminQuestions />} />
-        <Route path="/admin/team" element={<AdminTeam />} />
-        <Route path="/admin/settings" element={<AdminSettings />} />
-        <Route path="/admin/onboarding" element={<AdminOnboarding />} />
-        <Route path="/admin/resources" element={<AdminResources />} />
-        <Route path="/admin/onboarding-management" element={<AdminOnboardingManagement />} />
-        <Route path="/admin/resources-management" element={<AdminResourcesManagement />} />
+        {/* Admin routes (protected) */}
+        {isAdmin && (
+          <>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/clients" element={<AdminClients />} />
+            <Route path="/admin/clients/:clientId" element={<AdminClientDetail />} />
+            <Route path="/admin/templates" element={<AdminTemplates />} />
+            <Route path="/admin/questions" element={<AdminQuestions />} />
+            {user?.role === "admin" && (
+              <Route path="/admin/team" element={<AdminTeam />} />
+            )}
+            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+            <Route path="/admin/resources" element={<AdminResources />} />
+            <Route path="/admin/onboarding-management" element={<AdminOnboardingManagement />} />
+            <Route path="/admin/resources-management" element={<AdminResourcesManagement />} />
+          </>
+        )}
 
         {/* Authenticated users visiting /login get sent home */}
         <Route path="/login" element={<Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />

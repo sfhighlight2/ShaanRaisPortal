@@ -19,17 +19,41 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { mockOnboardingPhases, mockOnboardingTasks } from "@/lib/mock-data";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { OnboardingPhase, OnboardingTask } from "@/lib/types";
 
 const AdminOnboardingManagement: React.FC = () => {
     // Local state
-    const [phases, setPhases] = useState<OnboardingPhase[]>(
-        [...mockOnboardingPhases].sort((a, b) => a.displayOrder - b.displayOrder)
-    );
-    const [tasks, setTasks] = useState<OnboardingTask[]>(
-        [...mockOnboardingTasks].sort((a, b) => a.displayOrder - b.displayOrder)
-    );
+    const [phases, setPhases] = useState<OnboardingPhase[]>([]);
+    const [tasks, setTasks] = useState<OnboardingTask[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadData = React.useCallback(async () => {
+        try {
+            if (!isSupabaseConfigured) return;
+            const [phasesRes, tasksRes] = await Promise.all([
+                supabase.from("onboarding_phases").select("*").order("display_order"),
+                supabase.from("onboarding_tasks").select("*").order("display_order"),
+            ]);
+            if (phasesRes.error) throw phasesRes.error;
+            if (tasksRes.error) throw tasksRes.error;
+            
+            setPhases((phasesRes.data || []).map(p => ({
+                id: p.id, name: p.name, description: p.description, displayOrder: p.display_order, createdAt: p.created_at
+            })));
+            setTasks((tasksRes.data || []).map(t => ({
+                id: t.id, phaseId: t.phase_id, title: t.title, description: t.description, displayOrder: t.display_order, required: t.required, resourceLink: t.resource_link
+            })));
+        } catch (err) {
+            console.error("Error loading onboarding management data:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // UI state
     const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
@@ -73,41 +97,46 @@ const AdminOnboardingManagement: React.FC = () => {
         setPhaseDialogOpen(true);
     };
 
-    const savePhase = () => {
+    const savePhase = async () => {
         if (!phaseName.trim()) return;
-        if (editingPhase) {
-            setPhases((prev) =>
-                prev.map((p) =>
-                    p.id === editingPhase.id ? { ...p, name: phaseName.trim(), description: phaseDescription.trim() || undefined } : p
-                )
-            );
-        } else {
-            const maxOrder = phases.reduce((max, p) => Math.max(max, p.displayOrder), 0);
-            setPhases((prev) => [
-                ...prev,
-                {
-                    id: `op-${Date.now()}`,
-                    name: phaseName.trim(),
-                    description: phaseDescription.trim() || undefined,
-                    displayOrder: maxOrder + 1,
-                    createdAt: new Date().toISOString(),
-                },
-            ]);
+        try {
+            if (editingPhase) {
+                const { error } = await supabase.from("onboarding_phases").update({
+                    name: phaseName.trim(), description: phaseDescription.trim() || null
+                }).eq("id", editingPhase.id);
+                if (error) throw error;
+            } else {
+                const maxOrder = phases.reduce((max, p) => Math.max(max, p.displayOrder), 0);
+                const { error } = await supabase.from("onboarding_phases").insert({
+                    name: phaseName.trim(), description: phaseDescription.trim() || null, display_order: maxOrder + 1
+                });
+                if (error) throw error;
+            }
+            loadData();
+            setPhaseDialogOpen(false);
+        } catch (err) {
+            console.error("Error saving phase:", err);
         }
-        setPhaseDialogOpen(false);
     };
 
-    const movePhase = (phaseId: string, direction: "up" | "down") => {
-        setPhases((prev) => {
-            const sorted = [...prev].sort((a, b) => a.displayOrder - b.displayOrder);
-            const idx = sorted.findIndex((p) => p.id === phaseId);
-            if ((direction === "up" && idx === 0) || (direction === "down" && idx === sorted.length - 1)) return prev;
-            const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-            const tempOrder = sorted[idx].displayOrder;
-            sorted[idx] = { ...sorted[idx], displayOrder: sorted[swapIdx].displayOrder };
-            sorted[swapIdx] = { ...sorted[swapIdx], displayOrder: tempOrder };
-            return sorted;
-        });
+    const movePhase = async (phaseId: string, direction: "up" | "down") => {
+        const sorted = [...phases].sort((a, b) => a.displayOrder - b.displayOrder);
+        const idx = sorted.findIndex((p) => p.id === phaseId);
+        if ((direction === "up" && idx === 0) || (direction === "down" && idx === sorted.length - 1)) return;
+        
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        const currentPhase = sorted[idx];
+        const targetPhase = sorted[swapIdx];
+        
+        try {
+            await Promise.all([
+                supabase.from("onboarding_phases").update({ display_order: targetPhase.displayOrder }).eq("id", currentPhase.id),
+                supabase.from("onboarding_phases").update({ display_order: currentPhase.displayOrder }).eq("id", targetPhase.id),
+            ]);
+            loadData();
+        } catch (err) {
+            console.error("Error moving phase:", err);
+        }
     };
 
     // === Task CRUD ===
@@ -129,68 +158,75 @@ const AdminOnboardingManagement: React.FC = () => {
         setTaskDialogOpen(true);
     };
 
-    const saveTask = () => {
+    const saveTask = async () => {
         if (!taskTitle.trim()) return;
-        if (editingTask) {
-            setTasks((prev) =>
-                prev.map((t) =>
-                    t.id === editingTask.id
-                        ? {
-                            ...t,
-                            title: taskTitle.trim(),
-                            description: taskDescription.trim() || undefined,
-                            required: taskRequired,
-                            resourceLink: taskResourceLink.trim() || undefined,
-                        }
-                        : t
-                )
-            );
-        } else {
-            const phaseTasks = tasks.filter((t) => t.phaseId === targetPhaseId);
-            const maxOrder = phaseTasks.reduce((max, t) => Math.max(max, t.displayOrder), 0);
-            setTasks((prev) => [
-                ...prev,
-                {
-                    id: `ot-${Date.now()}`,
-                    phaseId: targetPhaseId,
+        try {
+            if (editingTask) {
+                const { error } = await supabase.from("onboarding_tasks").update({
                     title: taskTitle.trim(),
-                    description: taskDescription.trim() || undefined,
-                    displayOrder: maxOrder + 1,
+                    description: taskDescription.trim() || null,
                     required: taskRequired,
-                    resourceLink: taskResourceLink.trim() || undefined,
-                },
-            ]);
+                    resource_link: taskResourceLink.trim() || null,
+                }).eq("id", editingTask.id);
+                if (error) throw error;
+            } else {
+                const phaseTasks = tasks.filter((t) => t.phaseId === targetPhaseId);
+                const maxOrder = phaseTasks.reduce((max, t) => Math.max(max, t.displayOrder), 0);
+                const { error } = await supabase.from("onboarding_tasks").insert({
+                    phase_id: targetPhaseId,
+                    title: taskTitle.trim(),
+                    description: taskDescription.trim() || null,
+                    display_order: maxOrder + 1,
+                    required: taskRequired,
+                    resource_link: taskResourceLink.trim() || null,
+                });
+                if (error) throw error;
+            }
+            loadData();
+            setTaskDialogOpen(false);
+        } catch (err) {
+            console.error("Error saving task:", err);
         }
-        setTaskDialogOpen(false);
     };
 
-    const moveTask = (taskId: string, phaseId: string, direction: "up" | "down") => {
-        setTasks((prev) => {
-            const phaseTasks = prev
-                .filter((t) => t.phaseId === phaseId)
-                .sort((a, b) => a.displayOrder - b.displayOrder);
-            const idx = phaseTasks.findIndex((t) => t.id === taskId);
-            if ((direction === "up" && idx === 0) || (direction === "down" && idx === phaseTasks.length - 1)) return prev;
-            const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-            const tempOrder = phaseTasks[idx].displayOrder;
-            const update = new Map<string, number>();
-            update.set(phaseTasks[idx].id, phaseTasks[swapIdx].displayOrder);
-            update.set(phaseTasks[swapIdx].id, tempOrder);
-            return prev.map((t) => (update.has(t.id) ? { ...t, displayOrder: update.get(t.id)! } : t));
-        });
+    const moveTask = async (taskId: string, phaseId: string, direction: "up" | "down") => {
+        const phaseTasks = tasks.filter((t) => t.phaseId === phaseId).sort((a, b) => a.displayOrder - b.displayOrder);
+        const idx = phaseTasks.findIndex((t) => t.id === taskId);
+        if ((direction === "up" && idx === 0) || (direction === "down" && idx === phaseTasks.length - 1)) return;
+        
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        const currentTask = phaseTasks[idx];
+        const targetTask = phaseTasks[swapIdx];
+
+        try {
+            await Promise.all([
+                supabase.from("onboarding_tasks").update({ display_order: targetTask.displayOrder }).eq("id", currentTask.id),
+                supabase.from("onboarding_tasks").update({ display_order: currentTask.displayOrder }).eq("id", targetTask.id),
+            ]);
+            loadData();
+        } catch (err) {
+            console.error("Error moving task:", err);
+        }
     };
 
     // === Delete ===
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (!deleteTarget) return;
-        if (deleteTarget.type === "phase") {
-            setPhases((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-            setTasks((prev) => prev.filter((t) => t.phaseId !== deleteTarget.id));
-        } else {
-            setTasks((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+        try {
+            if (deleteTarget.type === "phase") {
+                const { error } = await supabase.from("onboarding_phases").delete().eq("id", deleteTarget.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from("onboarding_tasks").delete().eq("id", deleteTarget.id);
+                if (error) throw error;
+            }
+            loadData();
+        } catch (err) {
+            console.error("Error deleting:", err);
+        } finally {
+            setDeleteDialogOpen(false);
+            setDeleteTarget(null);
         }
-        setDeleteDialogOpen(false);
-        setDeleteTarget(null);
     };
 
     const requestDelete = (type: "phase" | "task", id: string) => {

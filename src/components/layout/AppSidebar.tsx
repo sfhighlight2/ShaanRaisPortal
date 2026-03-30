@@ -13,7 +13,7 @@ import {
   SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { mockNotifications } from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase";
 import logoImg from "@/assets/shaan-rais-logo.png";
 
 const clientNav = [
@@ -43,7 +43,6 @@ const managerNav = [
   { title: "Clients", url: "/admin/clients", icon: Users },
   { title: "Templates", url: "/admin/templates", icon: Blocks },
   { title: "Questions", url: "/admin/questions", icon: Inbox },
-  { title: "Team", url: "/admin/team", icon: Users },
   { title: "Onboarding", url: "/admin/onboarding", icon: GraduationCap },
   { title: "Resources", url: "/admin/resources", icon: BookOpen },
   { title: "Settings", url: "/admin/settings", icon: Settings },
@@ -60,7 +59,17 @@ export function AppSidebar() {
   const nav = isAdmin
     ? (user?.role === "admin" ? adminNav : managerNav)
     : clientNav;
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact" })
+      .eq("user_id", user.id)
+      .eq("read", false)
+      .then(({ count }) => setUnreadCount(count ?? 0));
+  }, [user?.id]);
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
