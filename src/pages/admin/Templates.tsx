@@ -514,8 +514,8 @@ const AdminTemplates: React.FC = () => {
                             </button>
                             {isAdmin && (
                               <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openPhaseDialog(template.id, phase)}><Edit className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deletePhase(phase.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openPhaseDialog(template.id, phase); }}><Edit className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); deletePhase(phase.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                               </div>
                             )}
                           </div>
