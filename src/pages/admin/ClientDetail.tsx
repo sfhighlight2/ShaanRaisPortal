@@ -454,7 +454,7 @@ const AdminClientDetail: React.FC = () => {
               <div className="space-y-1.5"><label className="text-sm font-medium">Google Drive URL</label><Input value={editForm.driveUrl} onChange={e => setEditForm(f => f ? ({ ...f, driveUrl: e.target.value }) : null)} /></div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Airtable URL</label><Input value={editForm.airtableUrl} onChange={e => setEditForm(f => f ? ({ ...f, airtableUrl: e.target.value }) : null)} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><label className="text-sm font-medium">Account Manager</label>
+                <div className="space-y-1.5"><label className="text-sm font-medium">Business Consultant</label>
                   <Select value={editForm.managerId} onValueChange={v => setEditForm(f => f ? ({ ...f, managerId: v }) : null)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -591,10 +591,10 @@ const AdminClientDetail: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-sm font-medium">{client.manager.firstName} {client.manager.lastName}</p>
-                      <p className="text-xs text-muted-foreground">Account Manager</p>
+                      <p className="text-xs text-muted-foreground">Business Consultant</p>
                     </div>
                   </div>
-                ) : <p className="text-sm text-muted-foreground">No account manager assigned.</p>}
+                ) : <p className="text-sm text-muted-foreground">No business consultant assigned.</p>}
               </CardContent>
             </Card>
           </div>

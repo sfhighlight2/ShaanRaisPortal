@@ -57,22 +57,30 @@ const ClientDashboard: React.FC = () => {
     return (
       <Card>
         <CardContent className="p-8 text-center text-muted-foreground">
-          No active project found for your account. Please contact your account manager.
+          No active project found for your account. Please contact your business consultant.
         </CardContent>
       </Card>
     );
   }
 
   // Current Phase Logic
-  const currentPhase = phases.find((p) => p.status === "current") || phases[0];
-  
-  // Tasks Logic
-  const allTasks = tasks;
-  const pendingTasks = allTasks
+  const currentPhase = phases.find((p) => p.status === "current") || phases.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+
+  // Sort phases, then sort tasks by phase order + task sort_order
+  const sortedPhases = [...phases].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const sortedTasks = [...tasks]
+    .map(t => ({ ...t, _phaseSortOrder: sortedPhases.findIndex(p => p.id === t.phaseId) }))
+    .sort((a, b) => {
+      if (a._phaseSortOrder !== b._phaseSortOrder) return a._phaseSortOrder - b._phaseSortOrder;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
+
+  const pendingTasks = sortedTasks
     .filter((t) => t.status === "pending" || t.status === "in_progress")
-    .slice(0, 3);
+    .slice(0, 5);
   const nextTask = pendingTasks[0];
 
+  const recentDeliverables = deliverables.slice(0, 5);
   const recentUpdates = updates.slice(0, 2);
 
   return (
@@ -83,7 +91,7 @@ const ClientDashboard: React.FC = () => {
           { label: "Package", value: project?.projectName || "—" },
           { label: "Current Phase", value: currentPhase?.name || "—" },
           { label: "Status", badge: true, value: client.status.replace("_", " ") },
-          { label: "Account Manager", value: accountManager ? `${accountManager.firstName} ${accountManager.lastName}` : "—" },
+          { label: "Business Consultant", value: accountManager ? `${accountManager.firstName} ${accountManager.lastName}` : "—" },
         ].map((item, i) => (
           <motion.div
             key={item.label}
@@ -235,10 +243,10 @@ const ClientDashboard: React.FC = () => {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {deliverables.length === 0 ? (
+            {recentDeliverables.length === 0 ? (
               <p className="text-sm text-muted-foreground">No deliverables in this phase yet.</p>
             ) : (
-              deliverables.map((d) => (
+              recentDeliverables.map((d) => (
                 <div
                   key={d.id}
                   onClick={() => navigate("/deliverables")}

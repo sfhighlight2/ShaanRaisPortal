@@ -135,7 +135,7 @@ const ClientProfile: React.FC = () => {
         {/* Your Account Manager */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Your Account Manager</CardTitle>
+            <CardTitle className="text-base font-medium">Your Business Consultant</CardTitle>
           </CardHeader>
           <CardContent>
             {accountManager ? (
@@ -151,7 +151,7 @@ const ClientProfile: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No account manager assigned.</p>
+              <p className="text-sm text-muted-foreground">No business consultant assigned.</p>
             )}
           </CardContent>
         </Card>

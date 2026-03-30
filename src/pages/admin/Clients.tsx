@@ -159,7 +159,7 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
       </Select>
     </div>
     <div className="space-y-1.5">
-      <label className="text-sm font-medium">Account Manager</label>
+      <label className="text-sm font-medium">Business Consultant</label>
       <Select value={form.account_manager_id} onValueChange={v => onChange({ account_manager_id: v })}>
         <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
         <SelectContent>
@@ -464,7 +464,7 @@ const AdminClients: React.FC = () => {
                   <TableHead>Package</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Phase</TableHead>
-                  <TableHead>Manager</TableHead>
+                  <TableHead>Consultant</TableHead>
                   <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
