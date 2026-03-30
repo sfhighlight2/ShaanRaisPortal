@@ -103,13 +103,26 @@ const AdminQuestions: React.FC = () => {
   const handleDeleteQuestion = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this question?")) return;
     try {
-      const { error } = await supabase.from("questions").delete().eq("id", id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("No active session.");
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "delete_question", question_id: id }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+
       toast({ title: "Deleted", description: "Question deleted successfully." });
       loadData();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Error", description: "Failed to delete question.", variant: "destructive" });
+    } catch (err: any) {
+      console.error("Delete question error:", err);
+      toast({ 
+        title: "Error Deleting", 
+        description: err.message || "Failed to delete question.", 
+        variant: "destructive" 
+      });
     }
   };
 
