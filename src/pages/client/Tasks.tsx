@@ -1,18 +1,19 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  CheckCircle, Clock, ArrowRight, Filter,
+  CheckCircle, Clock,
   ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useClientData } from "@/hooks/useClientData";
-import type { TaskType, TaskStatus } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import type { TaskType } from "@/lib/types";
 
-const taskTypeIcons: Record<TaskType, React.ElementType> = {
+const taskTypeIcons: Record<string, React.ElementType> = {
   form: ClipboardList,
   upload: Upload,
   approval: FileCheck,
@@ -21,7 +22,7 @@ const taskTypeIcons: Record<TaskType, React.ElementType> = {
   checklist: CheckSquare,
 };
 
-const taskTypeLabels: Record<TaskType, string> = {
+const taskTypeLabels: Record<string, string> = {
   form: "Form",
   upload: "Upload",
   approval: "Approval",
@@ -30,18 +31,12 @@ const taskTypeLabels: Record<TaskType, string> = {
   checklist: "Checklist",
 };
 
-const statusStyles: Record<TaskStatus, { bg: string; text: string }> = {
-  pending: { bg: "bg-muted", text: "text-muted-foreground" },
-  in_progress: { bg: "bg-warning/10", text: "text-warning" },
-  completed: { bg: "bg-success/10", text: "text-success" },
-  blocked: { bg: "bg-destructive/10", text: "text-destructive" },
-};
-
 const ClientTasks: React.FC = () => {
   const [activeTab, setActiveTab] = useState("pending");
+  const [completing, setCompleting] = useState<string | null>(null);
   const { toast } = useToast();
-  
-  const { phases, tasks, loading } = useClientData();
+
+  const { phases, tasks, loading, refetch } = useClientData();
 
   if (loading) {
     return (
@@ -51,35 +46,44 @@ const ClientTasks: React.FC = () => {
     );
   }
 
-  // Get all client-visible tasks with phase info appended
-  const allTasks = tasks.map(t => {
-    const phase = phases.find(p => p.id === t.phaseId);
-    return {
-      ...t,
-      phaseName: phase?.name || "Unknown Phase",
-      phaseStatus: phase?.status || "upcoming"
-    };
-  });
+  // Sort tasks by phase sort_order first, then by task sort_order within the phase
+  const allTasks = tasks
+    .map(t => {
+      const phase = phases.find(p => p.id === t.phaseId);
+      return {
+        ...t,
+        phaseName: phase?.name || "Unknown Phase",
+        phaseSortOrder: phase?.sortOrder ?? 9999,
+        phaseStatus: phase?.status || "upcoming",
+      };
+    })
+    .sort((a, b) => {
+      if (a.phaseSortOrder !== b.phaseSortOrder) return a.phaseSortOrder - b.phaseSortOrder;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
 
-  const pendingTasks = allTasks.filter((t) => t.status !== "completed");
-  const completedTasks = allTasks.filter((t) => t.status === "completed");
-
+  const pendingTasks = allTasks.filter(t => t.status !== "completed");
+  const completedTasks = allTasks.filter(t => t.status === "completed");
   const displayTasks = activeTab === "pending" ? pendingTasks : completedTasks;
 
-  const handleTaskClick = (task: typeof allTasks[0]) => {
-    if (task.status === "completed") return;
-    toast({
-      title: `Opening: ${task.title}`,
-      description: `This ${taskTypeLabels[task.taskType].toLowerCase()} task will be available once connected to the backend.`,
-    });
-  };
-
-  const handleStartTask = (e: React.MouseEvent, task: typeof allTasks[0]) => {
+  const handleComplete = async (e: React.MouseEvent, taskId: string, taskTitle: string) => {
     e.stopPropagation();
-    toast({
-      title: "Task Started",
-      description: `"${task.title}" has been marked as in progress.`,
-    });
+    setCompleting(taskId);
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", taskId);
+
+      if (error) throw error;
+
+      toast({ title: "Task Completed! 🎉", description: `"${taskTitle}" has been marked as complete.` });
+      await refetch();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setCompleting(null);
+    }
   };
 
   return (
@@ -147,52 +151,63 @@ const ClientTasks: React.FC = () => {
               </Card>
             ) : (
               displayTasks.map((task, i) => {
-                const Icon = taskTypeIcons[task.taskType];
+                const Icon = taskTypeIcons[task.taskType] || ClipboardList;
+                const isCompleted = task.status === "completed";
                 return (
                   <motion.div
                     key={task.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    transition={{ delay: i * 0.04 }}
                   >
-                    <Card
-                      onClick={() => handleTaskClick(task)}
-                      className="group hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
-                    >
+                    <Card className={`transition-all duration-200 ${isCompleted ? "opacity-70" : "hover:border-primary/30 hover:shadow-md"}`}>
                       <CardContent className="p-4 flex items-center gap-4">
-                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                          task.status === "completed" ? "bg-success/10" : "bg-muted"
+                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                          isCompleted ? "bg-success/10" : "bg-muted"
                         }`}>
-                          {task.status === "completed" ? (
+                          {isCompleted ? (
                             <CheckCircle className="h-5 w-5 text-success" />
                           ) : (
                             <Icon className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground">{task.title}</p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <p className={`font-medium ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                            {task.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <Badge variant="outline" className="text-[10px]">
                               {task.phaseName}
                             </Badge>
-                            <Badge className={`text-[10px] ${statusStyles[task.status].bg} ${statusStyles[task.status].text}`}>
-                              {taskTypeLabels[task.taskType]}
+                            <Badge variant="outline" className="text-[10px]">
+                              {taskTypeLabels[task.taskType] || task.taskType}
                             </Badge>
                           </div>
                         </div>
-                        {task.status !== "completed" && (
+                        {isCompleted ? (
+                          <p className="text-xs text-muted-foreground shrink-0">
+                            {task.completedAt
+                              ? new Date(task.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                              : "Done"}
+                          </p>
+                        ) : (
                           <Button
                             size="sm"
                             className="gap-1.5 shrink-0"
-                            onClick={(e) => handleStartTask(e, task)}
+                            disabled={completing === task.id}
+                            onClick={(e) => handleComplete(e, task.id, task.title)}
                           >
-                            Start <ArrowRight className="h-3.5 w-3.5" />
+                            {completing === task.id ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className="h-3 w-3 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                                Saving…
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5" /> Complete
+                              </span>
+                            )}
                           </Button>
-                        )}
-                        {task.status === "completed" && task.completedAt && (
-                          <p className="text-xs text-muted-foreground shrink-0">
-                            {new Date(task.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                          </p>
                         )}
                       </CardContent>
                     </Card>
