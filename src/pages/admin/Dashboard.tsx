@@ -48,12 +48,38 @@ const AdminDashboard: React.FC = () => {
       try {
         const { data } = await supabase
           .from("clients")
-          .select("id, company_name, primary_contact_name, status, manager:profiles!account_manager_id(first_name, last_name)")
+          .select("id, company_name, primary_contact_name, status, package_template_id, manager:profiles!account_manager_id(first_name, last_name), packageInfo:package_templates!package_template_id(name)")
           .order("company_name");
+
+        // Fetch current phases for all clients via their main projects
+        const clientIds = (data ?? []).map((r: any) => r.id);
+        let phaseMap: Record<string, string> = {};
+        if (clientIds.length > 0) {
+          const { data: projects } = await supabase
+            .from("projects")
+            .select("client_id, current_phase_id")
+            .in("client_id", clientIds)
+            .eq("is_main_project", true);
+
+          const phaseIds = (projects ?? []).map((p: any) => p.current_phase_id).filter(Boolean);
+          if (phaseIds.length > 0) {
+            const { data: phases } = await supabase
+              .from("phases")
+              .select("id, name")
+              .in("id", phaseIds);
+            const phaseNameMap: Record<string, string> = {};
+            (phases ?? []).forEach((ph: any) => { phaseNameMap[ph.id] = ph.name; });
+            (projects ?? []).forEach((p: any) => {
+              if (p.current_phase_id) phaseMap[p.client_id] = phaseNameMap[p.current_phase_id] ?? "—";
+            });
+          }
+        }
 
         const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
           ...(r as Omit<ClientRow, "manager">),
           manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
+          package: (Array.isArray(r.packageInfo) ? r.packageInfo[0] : (r.packageInfo as any))?.name ?? undefined,
+          currentPhase: phaseMap[(r as any).id] ?? undefined,
         }));
         setClients(rows);
         setStats({

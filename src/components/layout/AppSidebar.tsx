@@ -41,7 +41,6 @@ const adminNav = [
 const managerNav = [
   { title: "Overview", url: "/admin", icon: BarChart3 },
   { title: "Clients", url: "/admin/clients", icon: Users },
-  { title: "Templates", url: "/admin/templates", icon: Blocks },
   { title: "Questions", url: "/admin/questions", icon: Inbox },
   { title: "Onboarding", url: "/admin/onboarding", icon: GraduationCap },
   { title: "Resources", url: "/admin/resources", icon: BookOpen },

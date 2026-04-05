@@ -76,10 +76,12 @@ function AppRoutes() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/clients" element={<AdminClients />} />
             <Route path="/admin/clients/:clientId" element={<AdminClientDetail />} />
-            <Route path="/admin/templates" element={<AdminTemplates />} />
             <Route path="/admin/questions" element={<AdminQuestions />} />
             {user?.role === "admin" && (
               <Route path="/admin/team" element={<AdminTeam />} />
+            )}
+            {user?.role === "admin" && (
+              <Route path="/admin/templates" element={<AdminTemplates />} />
             )}
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />
