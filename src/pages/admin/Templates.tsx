@@ -156,10 +156,10 @@ const AdminTemplates: React.FC = () => {
           .eq("id", editTemplate.id);
         if (err) throw err;
       } else {
-        // Create (with empty phases)
+        // Create new template (phases are stored in template_phases, not as a column)
         const { error: err } = await supabase
           .from("package_templates")
-          .insert({ name: form.name, description: form.description, phases: [] });
+          .insert({ name: form.name, description: form.description });
         if (err) throw err;
       }
       setShowDialog(false);
@@ -173,37 +173,68 @@ const AdminTemplates: React.FC = () => {
 
   const handleCopy = async (template: PackageTemplate) => {
     try {
-      const { error: err } = await supabase
+      // 1) Create the new template
+      const { data: newTpl, error: tplErr } = await supabase
         .from("package_templates")
-        .insert({
-          name: `${template.name} (Copy)`,
-          description: template.description,
-          phases: template.phases || [],
-        });
-      if (err) throw err;
+        .insert({ name: `${template.name} (Copy)`, description: template.description })
+        .select("id")
+        .single();
+      if (tplErr) throw tplErr;
+
+      // 2) Deep-copy each phase + its tasks + deliverables
+      for (const [phaseIndex, phase] of (template.phases || []).entries()) {
+        const { data: newPhase, error: phaseErr } = await supabase
+          .from("template_phases")
+          .insert({
+            template_id: newTpl.id,
+            name: phase.name,
+            description: (phase as any).description || null,
+            estimated_timeline: (phase as any).estimated_timeline || (phase as any).estimatedTimeline || null,
+            sort_order: phaseIndex + 1,
+          })
+          .select("id")
+          .single();
+        if (phaseErr) throw phaseErr;
+
+        // Copy tasks
+        const phaseTasks = (phase as any).tasks || [];
+        for (const [taskIndex, task] of phaseTasks.entries()) {
+          await supabase.from("template_tasks").insert({
+            template_phase_id: newPhase.id,
+            title: task.title,
+            description: task.description || null,
+            task_type: task.task_type || task.taskType || "checklist",
+            required: task.required ?? true,
+            sort_order: taskIndex + 1,
+          });
+        }
+
+        // Copy deliverables
+        const phaseDeliverables = (phase as any).deliverables || [];
+        for (const [delivIndex, deliv] of phaseDeliverables.entries()) {
+          await supabase.from("template_deliverables").insert({
+            template_phase_id: newPhase.id,
+            title: deliv.title,
+            description: deliv.description || null,
+            visible_to_client: deliv.visible_to_client ?? deliv.visibleToClient ?? true,
+            sort_order: delivIndex + 1,
+          });
+        }
+      }
+
+      toast({ title: "Template Duplicated", description: `"${template.name} (Copy)" has been created.` });
       loadTemplates();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to copy template:", err);
+      toast({ title: "Error Duplicating", description: err.message || "Failed to duplicate template.", variant: "destructive" });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this template? All its phases, tasks, and deliverables will be lost.")) return;
     try {
-      // Manual cascade delete
-      const { data: phases } = await supabase.from("template_phases").select("id").eq("template_id", id);
-      if (phases && phases.length > 0) {
-        const phaseIds = phases.map(p => p.id);
-        await supabase.from("template_tasks").delete().in("template_phase_id", phaseIds);
-        await supabase.from("template_deliverables").delete().in("template_phase_id", phaseIds);
-        await supabase.from("template_phases").delete().eq("template_id", id);
-      }
-      
-      const { error: err } = await supabase
-        .from("package_templates")
-        .delete()
-        .eq("id", id);
-      if (err) throw err;
+      // Route through edge function (service role) to bypass RLS on child tables
+      await adminAction({ action: "delete_template", template_id: id });
       toast({ title: "Template Deleted" });
       loadTemplates();
     } catch (err: any) {

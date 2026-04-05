@@ -65,7 +65,7 @@ export function useClientData() {
       // 2. Fetch the client record and account manager
       const { data: client, error: clientErr } = await supabase
         .from("clients")
-        .select("*, account_manager:profiles!account_manager_id(*)")
+        .select("*, account_manager:profiles!account_manager_id(id, first_name, last_name, email, role, profile_photo, status, created_at)")
         .eq("id", clientId)
         .single();
         

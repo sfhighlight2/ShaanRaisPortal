@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useClientData } from "@/hooks/useClientData";
 import { Link } from "react-router-dom";
 import type { TaskType, PhaseStatus } from "@/lib/types";
@@ -79,36 +84,77 @@ const ClientDashboard: React.FC = () => {
     <div className="space-y-8 animate-fade-in">
       {/* Hero Status Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Package", value: project?.projectName || "—" },
-          { label: "Current Phase", value: currentPhase?.name || "—" },
-          { label: "Status", badge: true, value: client.status.replace("_", " ") },
-          { label: "Business Consultant", value: accountManager ? `${accountManager.firstName} ${accountManager.lastName}` : "—" },
-        ].map((item, i) => (
-          <motion.div
-            key={item.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07, duration: 0.4 }}
-            className="p-5 rounded-lg bg-card border border-border"
-          >
-            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
-            {item.badge ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Badge variant="outline" className="mt-1.5 capitalize">{item.value}</Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">Your current relationship status with our team</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <p className="text-sm font-medium text-foreground mt-1.5">{item.value}</p>
-            )}
-          </motion.div>
-        ))}
+        {/* Package */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0, duration: 0.4 }}
+          className="p-5 rounded-lg bg-card border border-border">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Package</p>
+          <p className="text-sm font-medium text-foreground mt-1.5">{project?.projectName || "—"}</p>
+        </motion.div>
+
+        {/* Current Phase */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07, duration: 0.4 }}
+          className="p-5 rounded-lg bg-card border border-border">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Current Phase</p>
+          <p className="text-sm font-medium text-foreground mt-1.5">{currentPhase?.name || "—"}</p>
+        </motion.div>
+
+        {/* Status */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14, duration: 0.4 }}
+          className="p-5 rounded-lg bg-card border border-border">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</p>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge variant="outline" className="mt-1.5 capitalize">{client.status.replace("_", " ")}</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Your current relationship status with our team</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </motion.div>
+
+        {/* Business Consultant — clickable popover */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.21, duration: 0.4 }}
+          className="p-5 rounded-lg bg-card border border-border">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Business Consultant</p>
+          {accountManager ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1 mt-1.5 group">
+                  <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                    {accountManager.firstName} {accountManager.lastName}
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64 p-0" sideOffset={8}>
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary shrink-0">
+                      {accountManager.firstName?.[0]}{accountManager.lastName?.[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{accountManager.firstName} {accountManager.lastName}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{accountManager.role === "manager" ? "Business Consultant" : accountManager.role}</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <a
+                      href={`mailto:${accountManager.email}`}
+                      className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{accountManager.email}</span>
+                    </a>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <p className="text-sm font-medium text-foreground mt-1.5">—</p>
+          )}
+        </motion.div>
       </div>
 
       {/* Next Step Card */}

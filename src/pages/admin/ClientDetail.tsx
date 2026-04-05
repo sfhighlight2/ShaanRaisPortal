@@ -463,20 +463,20 @@ const AdminClientDetail: React.FC = () => {
             <CardTitle className="text-base font-medium">Project Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            <div className="flex items-start w-full">
               {phases.map((phase, i) => (
                 <React.Fragment key={phase.id}>
-                  <div className="flex flex-col items-center min-w-[90px] shrink-0">
-                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium ${phaseStatusStyles[phase.status]}`}>
+                  <div className="flex flex-col items-center flex-1 min-w-0">
+                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${phaseStatusStyles[phase.status]}`}>
                       {phase.status === "completed" ? <CheckCircle className="h-3.5 w-3.5" /> :
                         phase.status === "locked" ? <Lock className="h-3 w-3" /> : i + 1}
                     </div>
-                    <p className={`text-xs mt-1.5 text-center ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    <p className={`text-xs mt-1.5 text-center leading-tight px-1 ${phase.status === "current" ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {phase.name}
                     </p>
                   </div>
                   {i < phases.length - 1 && (
-                    <div className={`h-0.5 w-4 shrink-0 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-muted" : "bg-primary"}`} />
+                    <div className={`h-0.5 flex-1 mt-3.5 mx-1 shrink-0 ${phases[i + 1].status === "locked" || phases[i + 1].status === "upcoming" ? "bg-muted" : "bg-primary"}`} />
                   )}
                 </React.Fragment>
               ))}
