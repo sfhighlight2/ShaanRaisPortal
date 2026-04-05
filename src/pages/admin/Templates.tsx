@@ -149,12 +149,13 @@ const AdminTemplates: React.FC = () => {
 
     try {
       if (editTemplate) {
-        // Update
-        const { error: err } = await supabase
-          .from("package_templates")
-          .update({ name: form.name, description: form.description })
-          .eq("id", editTemplate.id);
-        if (err) throw err;
+        // Route through edge function (service role) to bypass RLS on package_templates
+        await adminAction({
+          action: "update_template",
+          template_id: editTemplate.id,
+          name: form.name,
+          description: form.description,
+        });
       } else {
         // Create new template (phases are stored in template_phases, not as a column)
         const { error: err } = await supabase
