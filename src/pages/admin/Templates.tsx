@@ -61,6 +61,30 @@ function SortableTaskItem({ task, isAdmin, openTaskDialog, deleteTask, phaseId }
   );
 }
 
+// ── Sortable Deliverable Item ──
+function SortableDelivItem({ deliv, isAdmin, openDelivDialog, deleteDeliv, phaseId }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: deliv.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 text-sm p-2 bg-primary/5 rounded group/item">
+      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      <FileCheck className="h-3.5 w-3.5 text-primary" />
+      <span className="flex-1">{deliv.title}</span>
+      <Badge variant="outline" className={`text-[9px] ${deliv.visibleToClient || deliv.visible_to_client ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}>
+        {deliv.visibleToClient || deliv.visible_to_client ? "Client" : "Internal"}
+      </Badge>
+      {isAdmin && (
+        <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openDelivDialog(phaseId, deliv)}><Edit className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteDeliv(deliv.id)}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const AdminTemplates: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -418,6 +442,38 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
+  const handleDragEndDeliv = async (event: DragEndEvent, phaseId: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const tpl = templates.find(t => t.phases?.some((p: any) => p.id === phaseId));
+    const phase = tpl?.phases?.find((p: any) => p.id === phaseId);
+    if (!phase?.deliverables) return;
+
+    const oldIndex = phase.deliverables.findIndex((d: any) => d.id === active.id);
+    const newIndex = phase.deliverables.findIndex((d: any) => d.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(phase.deliverables, oldIndex, newIndex);
+
+    // Optimistic update
+    setTemplates(prev => prev.map(t => t.id !== tpl!.id ? t : {
+      ...t,
+      phases: (t.phases || []).map((p: any) => p.id !== phaseId ? p : { ...p, deliverables: reordered }),
+    }));
+
+    // Persist
+    try {
+      await adminAction({
+        action: "reorder_deliverables",
+        deliverables: reordered.map((d: any, i: number) => ({ id: d.id, sort_order: i + 1 })),
+      });
+    } catch (err) {
+      console.error("Deliverable reorder failed:", err);
+      loadTemplates();
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
@@ -587,21 +643,22 @@ const AdminTemplates: React.FC = () => {
                                   {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openDelivDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
                                 </div>
                                 {(phase.deliverables || []).length > 0 && (
-                                  <div className="space-y-1">
-                                    {(phase.deliverables || []).map((d: any) => (
-                                      <div key={d.id} className="flex items-center gap-2 text-sm p-2 bg-primary/5 rounded group/item">
-                                        <FileCheck className="h-3.5 w-3.5 text-primary" />
-                                        <span className="flex-1">{d.title}</span>
-                                        <Badge variant="outline" className={`text-[9px] ${d.visibleToClient ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}>{d.visibleToClient ? "Client" : "Internal"}</Badge>
-                                        {isAdmin && (
-                                          <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openDelivDialog(phase.id, d)}><Edit className="h-3 w-3" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteDeliv(d.id)}><Trash2 className="h-3 w-3" /></Button>
-                                          </div>
-                                        )}
+                                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEndDeliv(e, phase.id)}>
+                                    <SortableContext items={(phase.deliverables || []).map((d: any) => d.id)} strategy={verticalListSortingStrategy}>
+                                      <div className="space-y-1">
+                                        {(phase.deliverables || []).map((d: any) => (
+                                          <SortableDelivItem
+                                            key={d.id}
+                                            deliv={d}
+                                            isAdmin={isAdmin}
+                                            openDelivDialog={openDelivDialog}
+                                            deleteDeliv={deleteDeliv}
+                                            phaseId={phase.id}
+                                          />
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
+                                    </SortableContext>
+                                  </DndContext>
                                 )}
                               </div>
                             </div>
