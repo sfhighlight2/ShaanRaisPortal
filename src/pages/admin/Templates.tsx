@@ -85,6 +85,82 @@ function SortableDelivItem({ deliv, isAdmin, openDelivDialog, deleteDeliv, phase
   );
 }
 
+// ── Sortable Phase Item ──
+function SortablePhaseItem({
+  phase, index, templateId, isExpanded, togglePhase, isAdmin,
+  openPhaseDialog, deletePhase, sensors, handleDragEnd, handleDragEndDeliv,
+  openTaskDialog, openDelivDialog, deleteTask, deleteDeliv,
+}: any) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: phase.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className="border rounded-lg">
+      <div className="w-full flex items-center gap-2 p-2 hover:bg-muted/50 transition-colors group">
+        {/* Drag handle – separate from expand toggle */}
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none shrink-0 p-0.5">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </button>
+        {/* Expand toggle */}
+        <button onClick={() => togglePhase(phase.id)} className="flex items-center gap-2 flex-1 text-left min-w-0">
+          {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+          <span className="text-sm font-medium flex-1 truncate">{index + 1}. {phase.name}</span>
+          {phase.estimatedTimeline && (
+            <span className="text-xs text-muted-foreground shrink-0">{phase.estimatedTimeline}</span>
+          )}
+          <Badge variant="outline" className="text-[10px] shrink-0">{(phase.tasks || []).length} tasks</Badge>
+        </button>
+        {isAdmin && (
+          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openPhaseDialog(templateId, phase); }}><Edit className="h-3.5 w-3.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); deletePhase(phase.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div className="px-3 pb-3 space-y-3">
+          {/* Tasks */}
+          <div>
+            <div className="flex items-center justify-between mb-2 mt-1">
+              <p className="text-xs text-muted-foreground">Tasks</p>
+              {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openTaskDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
+            </div>
+            {(phase.tasks || []).length > 0 && (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, phase.id)}>
+                <SortableContext items={(phase.tasks || []).map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1">
+                    {(phase.tasks || []).map((task: any) => (
+                      <SortableTaskItem key={task.id} task={task} isAdmin={isAdmin} openTaskDialog={openTaskDialog} deleteTask={deleteTask} phaseId={phase.id} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+          {/* Deliverables */}
+          <div>
+            <div className="flex items-center justify-between mb-2 mt-3">
+              <p className="text-xs text-muted-foreground">Deliverables</p>
+              {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openDelivDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
+            </div>
+            {(phase.deliverables || []).length > 0 && (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEndDeliv(e, phase.id)}>
+                <SortableContext items={(phase.deliverables || []).map((d: any) => d.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1">
+                    {(phase.deliverables || []).map((d: any) => (
+                      <SortableDelivItem key={d.id} deliv={d} isAdmin={isAdmin} openDelivDialog={openDelivDialog} deleteDeliv={deleteDeliv} phaseId={phase.id} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const AdminTemplates: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -442,6 +518,34 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
+  const handleDragEndPhase = async (event: DragEndEvent, templateId: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl?.phases) return;
+
+    const oldIndex = tpl.phases.findIndex((p: any) => p.id === active.id);
+    const newIndex = tpl.phases.findIndex((p: any) => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(tpl.phases, oldIndex, newIndex);
+
+    // Optimistic update
+    setTemplates(prev => prev.map(t => t.id !== templateId ? t : { ...t, phases: reordered }));
+
+    // Persist
+    try {
+      await adminAction({
+        action: "reorder_phases",
+        phases: reordered.map((p: any, i: number) => ({ id: p.id, sort_order: i + 1 })),
+      });
+    } catch (err) {
+      console.error("Phase reorder failed:", err);
+      loadTemplates();
+    }
+  };
+
   const handleDragEndDeliv = async (event: DragEndEvent, phaseId: string) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -579,94 +683,33 @@ const AdminTemplates: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Phases */}
-                  <div className="space-y-2">
-                    {(template.phases || []).map((phase: any, i: number) => {
-                      const isExpanded = expandedPhases.has(phase.id);
-                      return (
-                        <div key={phase.id} className="border rounded-lg">
-                          <div className="w-full flex items-center gap-2 p-2 hover:bg-muted/50 transition-colors group">
-                            <button
-                              onClick={() => togglePhase(phase.id)}
-                              className="flex items-center gap-3 flex-1 text-left"
-                            >
-                              <GripVertical className="h-4 w-4 text-muted-foreground" />
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <span className="text-sm font-medium flex-1">{i + 1}. {phase.name}</span>
-                              {phase.estimatedTimeline && (
-                                <span className="text-xs text-muted-foreground">{phase.estimatedTimeline}</span>
-                              )}
-                              <Badge variant="outline" className="text-[10px]">
-                                {(phase.tasks || []).length} tasks
-                              </Badge>
-                            </button>
-                            {isAdmin && (
-                              <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openPhaseDialog(template.id, phase); }}><Edit className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); deletePhase(phase.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                              </div>
-                            )}
-                          </div>
-
-                          {isExpanded && (
-                            <div className="px-3 pb-3 space-y-3">
-                              {/* Tasks */}
-                              <div>
-                                <div className="flex items-center justify-between mb-2 mt-1">
-                                  <p className="text-xs text-muted-foreground">Tasks</p>
-                                  {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openTaskDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
-                                </div>
-                                {(phase.tasks || []).length > 0 && (
-                                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, phase.id)}>
-                                    <SortableContext items={(phase.tasks || []).map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
-                                      <div className="space-y-1">
-                                        {(phase.tasks || []).map((task: any) => (
-                                          <SortableTaskItem
-                                            key={task.id}
-                                            task={task}
-                                            isAdmin={isAdmin}
-                                            openTaskDialog={openTaskDialog}
-                                            deleteTask={deleteTask}
-                                            phaseId={phase.id}
-                                          />
-                                        ))}
-                                      </div>
-                                    </SortableContext>
-                                  </DndContext>
-                                )}
-                              </div>
-
-                              {/* Deliverables */}
-                              <div>
-                                <div className="flex items-center justify-between mb-2 mt-3">
-                                  <p className="text-xs text-muted-foreground">Deliverables</p>
-                                  {isAdmin && <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => openDelivDialog(phase.id)}><Plus className="h-3 w-3 mr-1" /> Add</Button>}
-                                </div>
-                                {(phase.deliverables || []).length > 0 && (
-                                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEndDeliv(e, phase.id)}>
-                                    <SortableContext items={(phase.deliverables || []).map((d: any) => d.id)} strategy={verticalListSortingStrategy}>
-                                      <div className="space-y-1">
-                                        {(phase.deliverables || []).map((d: any) => (
-                                          <SortableDelivItem
-                                            key={d.id}
-                                            deliv={d}
-                                            isAdmin={isAdmin}
-                                            openDelivDialog={openDelivDialog}
-                                            deleteDeliv={deleteDeliv}
-                                            phaseId={phase.id}
-                                          />
-                                        ))}
-                                      </div>
-                                    </SortableContext>
-                                  </DndContext>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Phases – sortable by drag */}
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEndPhase(e, template.id)}>
+                    <SortableContext items={(template.phases || []).map((p: any) => p.id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-2">
+                        {(template.phases || []).map((phase: any, i: number) => (
+                          <SortablePhaseItem
+                            key={phase.id}
+                            phase={phase}
+                            index={i}
+                            templateId={template.id}
+                            isExpanded={expandedPhases.has(phase.id)}
+                            togglePhase={togglePhase}
+                            isAdmin={isAdmin}
+                            openPhaseDialog={openPhaseDialog}
+                            deletePhase={deletePhase}
+                            sensors={sensors}
+                            handleDragEnd={handleDragEnd}
+                            handleDragEndDeliv={handleDragEndDeliv}
+                            openTaskDialog={openTaskDialog}
+                            openDelivDialog={openDelivDialog}
+                            deleteTask={deleteTask}
+                            deleteDeliv={deleteDeliv}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </CardContent>
               </Card>
             </motion.div>
