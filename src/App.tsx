@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 import Login from "./pages/Login";
@@ -91,6 +92,17 @@ function AppRoutes() {
           </>
         )}
 
+        {/* Admin/manager impersonation: client-view routes */}
+        {isAdmin && (
+          <>
+            <Route path="/admin/clients/:clientId/view/dashboard" element={<ClientDashboard />} />
+            <Route path="/admin/clients/:clientId/view/tasks" element={<ClientTasks />} />
+            <Route path="/admin/clients/:clientId/view/deliverables" element={<ClientDeliverables />} />
+            <Route path="/admin/clients/:clientId/view/documents" element={<ClientDocuments />} />
+            <Route path="/admin/clients/:clientId/view/updates" element={<ClientUpdates />} />
+          </>
+        )}
+
         {/* Authenticated users visiting /login get sent home */}
         <Route path="/login" element={<Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
 
@@ -113,7 +125,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <ImpersonationProvider>
+            <AppRoutes />
+          </ImpersonationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

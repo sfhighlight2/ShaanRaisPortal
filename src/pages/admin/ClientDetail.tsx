@@ -4,8 +4,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
-  Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff
+  Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users
 } from "lucide-react";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,7 @@ const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { clientId } = useParams();
+  const { startImpersonation } = useImpersonation();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
 
@@ -427,9 +429,24 @@ const AdminClientDetail: React.FC = () => {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
-          <MoreHorizontal className="h-4 w-4" /> Edit Client
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              if (clientId && client) {
+                startImpersonation(clientId, client.companyName);
+                navigate(`/admin/clients/${clientId}/view/dashboard`);
+              }
+            }}
+          >
+            <Users className="h-4 w-4" /> View as Client
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
+            <MoreHorizontal className="h-4 w-4" /> Edit Client
+          </Button>
+        </div>
       </div>
 
       {/* Quick Stats */}

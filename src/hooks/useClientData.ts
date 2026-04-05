@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import type { 
   Client, Project, Phase, Task, Deliverable, Document, Update, Question, User 
 } from "@/lib/types";
@@ -21,6 +22,7 @@ export interface ClientDataState {
 
 export function useClientData() {
   const { user, isAuthenticated } = useAuth();
+  const { impersonatedClientId } = useImpersonation();
   
   const [data, setData] = useState<ClientDataState>({
     client: null,
@@ -37,7 +39,7 @@ export function useClientData() {
   });
 
   const fetchClientData = useCallback(async () => {
-    // Only proceed if authenticated, configured, and the user has a linked client_id
+    // Only proceed if authenticated, configured
     if (!isAuthenticated || !user || !isSupabaseConfigured) {
       setData(prev => ({ ...prev, loading: false }));
       return;
@@ -46,16 +48,23 @@ export function useClientData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
 
-      // 1. Get the user's profile to find their linked client_id
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("client_id")
-        .eq("id", user.id)
-        .single();
+      let clientId: string | null = null;
 
-      if (profileErr) throw profileErr;
-      
-      const clientId = profile?.client_id;
+      if (impersonatedClientId) {
+        // Admin/manager is viewing as a specific client
+        clientId = impersonatedClientId;
+      } else {
+        // Normal client: look up their linked client_id from profile
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("client_id")
+          .eq("id", user.id)
+          .single();
+
+        if (profileErr) throw profileErr;
+        clientId = profile?.client_id ?? null;
+      }
+
       if (!clientId) {
         // User is not linked to a client
         setData(prev => ({ ...prev, loading: false }));
@@ -280,7 +289,7 @@ export function useClientData() {
       console.error("Error fetching client data:", err);
       setData(prev => ({ ...prev, loading: false, error: err }));
     }
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, impersonatedClientId]);
 
   useEffect(() => {
     fetchClientData();

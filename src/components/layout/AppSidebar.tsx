@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -50,15 +51,28 @@ const managerNav = [
 
 export function AppSidebar() {
   const { user, logout, switchRole } = useAuth();
+  const { isImpersonating, impersonatedClientId } = useImpersonation();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
 
   const isAdmin = user?.role === "admin" || user?.role === "manager" || user?.role === "team_member";
-  const nav = isAdmin
-    ? (user?.role === "admin" ? adminNav : managerNav)
-    : clientNav;
+
+  // When impersonating, show client-view nav with impersonation-scoped URLs
+  const impersonationClientNav = impersonatedClientId ? [
+    { title: "Dashboard", url: `/admin/clients/${impersonatedClientId}/view/dashboard`, icon: LayoutDashboard },
+    { title: "My Tasks", url: `/admin/clients/${impersonatedClientId}/view/tasks`, icon: CheckSquare },
+    { title: "Deliverables", url: `/admin/clients/${impersonatedClientId}/view/deliverables`, icon: Package },
+    { title: "Documents", url: `/admin/clients/${impersonatedClientId}/view/documents`, icon: FileText },
+    { title: "Updates", url: `/admin/clients/${impersonatedClientId}/view/updates`, icon: Bell },
+  ] : clientNav;
+
+  const nav = (isAdmin && isImpersonating)
+    ? impersonationClientNav
+    : isAdmin
+      ? (user?.role === "admin" ? adminNav : managerNav)
+      : clientNav;
   const [unreadCount, setUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
@@ -85,7 +99,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-muted text-[11px] uppercase tracking-widest font-medium">
-            {isAdmin ? "Management" : "Navigation"}
+            {isImpersonating ? "Client View" : isAdmin ? "Management" : "Navigation"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { Bell, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user } = useAuth();
+  const { isImpersonating } = useImpersonation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -73,7 +76,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      {/* Impersonation banner — fixed at the very top */}
+      <ImpersonationBanner />
+      <div className={`min-h-screen flex w-full${isImpersonating ? " pt-10" : ""}`}>
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
