@@ -72,35 +72,64 @@ const AdminTeam: React.FC = () => {
   const openEdit = (m: TeamProfile) => { setEditMember(m); setForm({ first_name: m.first_name, last_name: m.last_name, email: m.email, password: "", role: m.role }); setError(""); };
 
   const handleCreate = async () => {
-    if (!form.email || !form.password || !form.first_name) { setError("Name, email and password are required."); return; }
-    setSubmitting(true); setError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name, role: form.role }),
-    });
-    const json = await res.json();
-    setSubmitting(false);
-    if (json.error) { setError(json.error); return; }
-    setShowAddDialog(false);
-    loadMembers();
+    if (!form.email || !form.password || !form.first_name) {
+      setError("Name, email and password are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("No active session. Please sign in again.");
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          role: form.role,
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setShowAddDialog(false);
+      loadMembers();
+    } catch (err: any) {
+      setError(err?.message || "Failed to create team member. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleUpdate = async () => {
     if (!editMember) return;
-    setSubmitting(true); setError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ action: "update", user_id: editMember.id, first_name: form.first_name, last_name: form.last_name, role: form.role }),
-    });
-    const json = await res.json();
-    setSubmitting(false);
-    if (json.error) { setError(json.error); return; }
-    setEditMember(null);
-    loadMembers();
+    setSubmitting(true);
+    setError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("No active session. Please sign in again.");
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "update",
+          user_id: editMember.id,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          role: form.role,
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setEditMember(null);
+      loadMembers();
+    } catch (err: any) {
+      setError(err?.message || "Failed to update team member. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDeactivate = async (m: TeamProfile) => {
