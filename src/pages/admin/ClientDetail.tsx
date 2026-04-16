@@ -5,7 +5,7 @@ import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
-  Globe, FolderOpen, Video, Table2, Palette
+  Globe, FolderOpen, Video, Table2, Palette, Upload, X
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -101,6 +101,10 @@ const AdminClientDetail: React.FC = () => {
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [docForm, setDocForm] = useState({ title: "", documentType: "other", fileUrl: "", visibleToClient: true });
   const [savingDoc, setSavingDoc] = useState(false);
+  const [docUploadMode, setDocUploadMode] = useState<"upload" | "link">("upload");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Link State
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -368,31 +372,87 @@ const AdminClientDetail: React.FC = () => {
     if (d) {
       setEditDoc(d);
       setDocForm({ title: d.title, documentType: d.documentType, fileUrl: d.fileUrl || "", visibleToClient: d.visibleToClient });
+      setDocUploadMode(d.fileUrl?.includes("supabase") ? "upload" : "link");
     } else {
       setEditDoc(null);
       setDocForm({ title: "", documentType: "other", fileUrl: "", visibleToClient: true });
+      setDocUploadMode("upload");
     }
+    setSelectedFile(null);
+    setUploadProgress(0);
     setShowDocDialog(true);
   };
 
   const saveDoc = async () => {
     if (!docForm.title || !clientId) return;
     setSavingDoc(true);
+    let fileUrl = docForm.fileUrl || null;
+
+    // Handle file upload to Supabase Storage
+    if (docUploadMode === "upload" && selectedFile) {
+      try {
+        setUploadProgress(10);
+        const fileExt = selectedFile.name.split(".").pop();
+        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filePath = `${clientId}/${Date.now()}_${safeName}`;
+
+        setUploadProgress(30);
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("client-documents")
+          .upload(filePath, selectedFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          toast({ title: "Upload Failed", description: uploadError.message, variant: "destructive" });
+          setSavingDoc(false);
+          setUploadProgress(0);
+          return;
+        }
+
+        setUploadProgress(80);
+        const { data: urlData } = supabase.storage
+          .from("client-documents")
+          .getPublicUrl(uploadData.path);
+
+        fileUrl = urlData.publicUrl;
+        setUploadProgress(100);
+      } catch (err) {
+        console.error("File upload failed:", err);
+        toast({ title: "Upload Failed", description: "Could not upload file. Please try again.", variant: "destructive" });
+        setSavingDoc(false);
+        setUploadProgress(0);
+        return;
+      }
+    }
+
     let error;
     if (editDoc) {
+      // If editing and replacing with a new uploaded file, remove the old file from storage
+      if (selectedFile && editDoc.fileUrl?.includes("client-documents")) {
+        try {
+          const oldPath = editDoc.fileUrl.split("/client-documents/").pop();
+          if (oldPath) {
+            await supabase.storage.from("client-documents").remove([decodeURIComponent(oldPath)]);
+          }
+        } catch { /* old file cleanup is best-effort */ }
+      }
       const { error: err } = await supabase.from("documents").update({
         title: docForm.title, document_type: docForm.documentType,
-        file_url: docForm.fileUrl || null, visible_to_client: docForm.visibleToClient,
+        file_url: fileUrl, visible_to_client: docForm.visibleToClient,
       }).eq("id", editDoc.id);
       error = err;
     } else {
       const { error: err } = await supabase.from("documents").insert({
         client_id: clientId, title: docForm.title, document_type: docForm.documentType,
-        file_url: docForm.fileUrl || null, visible_to_client: docForm.visibleToClient,
+        file_url: fileUrl, visible_to_client: docForm.visibleToClient,
       });
       error = err;
     }
     setSavingDoc(false);
+    setUploadProgress(0);
     if (!error) {
       setShowDocDialog(false);
       toast({ title: editDoc ? "Document Updated" : "Document Added" });
@@ -405,6 +465,16 @@ const AdminClientDetail: React.FC = () => {
 
   const deleteDoc = async (id: string) => {
     if (!confirm("Delete this document?")) return;
+    // Clean up the file from storage if it was uploaded
+    const doc = documents.find(d => d.id === id);
+    if (doc?.fileUrl?.includes("client-documents")) {
+      try {
+        const filePath = doc.fileUrl.split("/client-documents/").pop();
+        if (filePath) {
+          await supabase.storage.from("client-documents").remove([decodeURIComponent(filePath)]);
+        }
+      } catch { /* storage cleanup is best-effort */ }
+    }
     const { error } = await supabase.from("documents").delete().eq("id", id);
     if (!error) { toast({ title: "Document Deleted" }); loadAll(); }
   };
@@ -832,7 +902,7 @@ const AdminClientDetail: React.FC = () => {
                 <div className="space-y-2">
                   {documents.map(d => (
                     <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
-                      {d.fileUrl ? <Link2 className="h-4 w-4 text-primary shrink-0" /> : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      {d.fileUrl ? (d.fileUrl.includes("client-documents") ? <Upload className="h-4 w-4 text-primary shrink-0" /> : <Link2 className="h-4 w-4 text-primary shrink-0" />) : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           {d.fileUrl ? (
@@ -945,10 +1015,10 @@ const AdminClientDetail: React.FC = () => {
       </Tabs>
 
       {/* Document Dialog */}
-      <Dialog open={showDocDialog} onOpenChange={setShowDocDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editDoc ? "Edit Document" : "Add Document"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Dialog open={showDocDialog} onOpenChange={(open) => { setShowDocDialog(open); if (!open) { setSelectedFile(null); setUploadProgress(0); } }}>
+        <DialogContent className="sm:max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+          <DialogHeader className="shrink-0"><DialogTitle>{editDoc ? "Edit Document" : "Add Document"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
             <div>
               <Label className="text-sm font-medium">Title</Label>
               <Input className="mt-1" value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Service Agreement" />
@@ -965,19 +1035,145 @@ const AdminClientDetail: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Upload Mode Toggle */}
             <div>
-              <Label className="text-sm font-medium">File URL / Link</Label>
-              <Input className="mt-1" value={docForm.fileUrl} onChange={e => setDocForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." />
-              <p className="text-xs text-muted-foreground mt-1">Paste a Google Drive, Dropbox, or any external link</p>
+              <Label className="text-sm font-medium mb-2 block">File Source</Label>
+              <div className="flex rounded-lg border border-border p-1 bg-muted/40 gap-1">
+                <button
+                  type="button"
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    docUploadMode === "upload"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setDocUploadMode("upload")}
+                >
+                  <Upload className="h-4 w-4" /> Upload File
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    docUploadMode === "link"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setDocUploadMode("link")}
+                >
+                  <Link2 className="h-4 w-4" /> Paste Link
+                </button>
+              </div>
             </div>
+
+            {docUploadMode === "upload" ? (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.svg,.zip"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setSelectedFile(file);
+                      // Auto-fill title if empty
+                      if (!docForm.title) {
+                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+                        setDocForm(f => ({ ...f, title: nameWithoutExt }));
+                      }
+                    }
+                  }}
+                />
+                {selectedFile ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/[0.03]">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <File className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/[0.02] transition-all"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        setSelectedFile(file);
+                        if (!docForm.title) {
+                          const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+                          setDocForm(f => ({ ...f, title: nameWithoutExt }));
+                        }
+                      }
+                    }}
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground">Click to browse or drag & drop</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">PDF, DOCX, XLSX, images, ZIP — up to 50 MB</p>
+                  </div>
+                )}
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                      <span>Uploading...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {editDoc?.fileUrl && !selectedFile && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                    <File className="h-3 w-3" /> Current file attached — select a new file to replace it
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium">File URL / Link</Label>
+                <Input className="mt-1" value={docForm.fileUrl} onChange={e => setDocForm(f => ({ ...f, fileUrl: e.target.value }))} placeholder="https://..." />
+                <p className="text-xs text-muted-foreground mt-1">Paste a Google Drive, Dropbox, or any external link</p>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Checkbox id="doc-visible" checked={docForm.visibleToClient} onCheckedChange={c => setDocForm(f => ({ ...f, visibleToClient: !!c }))} />
               <Label htmlFor="doc-visible" className="text-sm">Visible to client</Label>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border pt-4">
             <Button variant="outline" onClick={() => setShowDocDialog(false)}>Cancel</Button>
-            <Button onClick={saveDoc} disabled={savingDoc || !docForm.title}>{savingDoc ? "Saving..." : editDoc ? "Update" : "Add Document"}</Button>
+            <Button
+              onClick={saveDoc}
+              disabled={savingDoc || !docForm.title || (docUploadMode === "upload" && !selectedFile && !editDoc?.fileUrl)}
+            >
+              {savingDoc ? (
+                <span className="flex items-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  {selectedFile ? "Uploading..." : "Saving..."}
+                </span>
+              ) : editDoc ? "Update" : "Add Document"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
