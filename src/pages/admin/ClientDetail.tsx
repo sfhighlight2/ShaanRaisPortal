@@ -6,7 +6,7 @@ import {
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
   Globe, FolderOpen, Video, Table2, Palette, Upload, X,
-  Instagram, Twitter, Linkedin, Youtube, Facebook, Hash
+  Instagram, Twitter, Linkedin, Youtube, Facebook, Hash, StickyNote, Send
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,6 +65,7 @@ interface Question { id: string; subject: string; message: string; response?: st
 interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
 interface DocumentRow { id: string; title: string; documentType: string; fileUrl?: string; visibleToClient: boolean; uploadedAt: string; }
 interface LinkRow { id: string; title: string; url: string; linkType: LinkType; description?: string; visibleToClient: boolean; createdAt: string; }
+interface NoteRow { id: string; content: string; createdBy?: string; authorName?: string; createdAt: string; updatedAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -112,6 +113,13 @@ const AdminClientDetail: React.FC = () => {
   const [editLink, setEditLink] = useState<LinkRow | null>(null);
   const [linkForm, setLinkForm] = useState({ title: "", url: "", linkType: "other" as LinkType, description: "", visibleToClient: true });
   const [savingLink, setSavingLink] = useState(false);
+
+  // Notes State
+  const [notes, setNotes] = useState<NoteRow[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [editNoteId, setEditNoteId] = useState<string | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
 
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -209,6 +217,22 @@ const AdminClientDetail: React.FC = () => {
         id: l.id, title: l.title, url: l.url, linkType: l.link_type as LinkType,
         description: l.description ?? undefined, visibleToClient: l.visible_to_client, createdAt: l.created_at,
       })));
+
+      // Notes
+      const { data: notesData } = await supabase
+        .from("client_notes")
+        .select("*, author:profiles!created_by(first_name, last_name)")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+
+      setNotes((notesData || []).map(n => {
+        const author = Array.isArray(n.author) ? n.author[0] : n.author;
+        return {
+          id: n.id, content: n.content, createdBy: n.created_by,
+          authorName: author ? `${author.first_name} ${author.last_name}` : undefined,
+          createdAt: n.created_at, updatedAt: n.updated_at,
+        };
+      }));
     } catch (err) {
       console.error("ClientDetail load error:", err);
     } finally {
@@ -527,6 +551,52 @@ const AdminClientDetail: React.FC = () => {
     if (!error) { toast({ title: "Link Deleted" }); loadAll(); }
   };
 
+  // Notes CRUD
+  const addNote = async () => {
+    if (!newNote.trim() || !clientId) return;
+    setSavingNote(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase.from("client_notes").insert({
+      client_id: clientId,
+      content: newNote.trim(),
+      created_by: session?.user?.id || null,
+    });
+    setSavingNote(false);
+    if (!error) {
+      setNewNote("");
+      toast({ title: "Note Added" });
+      loadAll();
+    } else {
+      console.error(error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const updateNote = async (id: string) => {
+    if (!editNoteContent.trim()) return;
+    setSavingNote(true);
+    const { error } = await supabase.from("client_notes").update({
+      content: editNoteContent.trim(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+    setSavingNote(false);
+    if (!error) {
+      setEditNoteId(null);
+      setEditNoteContent("");
+      toast({ title: "Note Updated" });
+      loadAll();
+    } else {
+      console.error(error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const deleteNote = async (id: string) => {
+    if (!confirm("Delete this note?")) return;
+    const { error } = await supabase.from("client_notes").delete().eq("id", id);
+    if (!error) { toast({ title: "Note Deleted" }); loadAll(); }
+  };
+
   const linkTypeIcons: Record<LinkType, React.ElementType> = {
     folder: FolderOpen, document: FileText, video: Video,
     spreadsheet: Table2, design: Palette, other: Globe,
@@ -782,6 +852,7 @@ const AdminClientDetail: React.FC = () => {
           <TabsTrigger value="deliverables" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Deliverables</TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5"><File className="h-3.5 w-3.5" /> Documents</TabsTrigger>
           <TabsTrigger value="links" className="gap-1.5"><Link2 className="h-3.5 w-3.5" /> Links</TabsTrigger>
+          <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Notes</TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5"><Activity className="h-3.5 w-3.5" /> Activity</TabsTrigger>
           <TabsTrigger value="questions" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Questions</TabsTrigger>
         </TabsList>
@@ -973,6 +1044,100 @@ const AdminClientDetail: React.FC = () => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <StickyNote className="h-4 w-4" /> Internal Notes
+                <Badge variant="outline" className="text-[10px] ml-1">Team Only</Badge>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Private notes visible only to admins and managers. Clients cannot see these.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add Note */}
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <textarea
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    placeholder="Add an internal note..."
+                    rows={2}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        addNote();
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="self-end h-9 gap-1.5"
+                  onClick={addNote}
+                  disabled={savingNote || !newNote.trim()}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {savingNote ? "Saving..." : "Add"}
+                </Button>
+              </div>
+
+              {/* Notes List */}
+              {notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No notes yet. Add the first one above.</p>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map(n => (
+                    <div key={n.id} className="p-3 rounded-lg border group hover:border-primary/30 transition-colors">
+                      {editNoteId === n.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editNoteContent}
+                            onChange={e => setEditNoteContent(e.target.value)}
+                            rows={3}
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" size="sm" onClick={() => { setEditNoteId(null); setEditNoteContent(""); }}>Cancel</Button>
+                            <Button size="sm" onClick={() => updateNote(n.id)} disabled={savingNote || !editNoteContent.trim()}>
+                              {savingNote ? "Saving..." : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{n.content}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {n.authorName && (
+                                <span className="font-medium">{n.authorName}</span>
+                              )}
+                              <span>·</span>
+                              <span>{new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                              {n.updatedAt !== n.createdAt && (
+                                <span className="italic">(edited)</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditNoteId(n.id); setEditNoteContent(n.content); }}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteNote(n.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
