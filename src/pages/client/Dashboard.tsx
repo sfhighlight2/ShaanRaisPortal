@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ const ClientDashboard: React.FC = () => {
     tasks, 
     deliverables,
     updates, 
+    notes,
     accountManager, 
     loading 
   } = useClientData();
@@ -337,6 +338,34 @@ const ClientDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Notes from Team */}
+      {notes.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <StickyNote className="h-4 w-4" /> Notes from Your Team
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {notes.map((note) => (
+              <div
+                key={note.id}
+                className="p-3 rounded-lg border border-border bg-primary/[0.02]"
+              >
+                <p className="text-sm text-foreground whitespace-pre-wrap">{note.content}</p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                  {note.authorName && (
+                    <span className="font-medium">{note.authorName}</span>
+                  )}
+                  <span>·</span>
+                  <span>{new Date(note.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

@@ -65,7 +65,7 @@ interface Question { id: string; subject: string; message: string; response?: st
 interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
 interface DocumentRow { id: string; title: string; documentType: string; fileUrl?: string; visibleToClient: boolean; uploadedAt: string; }
 interface LinkRow { id: string; title: string; url: string; linkType: LinkType; description?: string; visibleToClient: boolean; createdAt: string; }
-interface NoteRow { id: string; content: string; createdBy?: string; authorName?: string; createdAt: string; updatedAt: string; }
+interface NoteRow { id: string; content: string; createdBy?: string; authorName?: string; visibleToClient: boolean; createdAt: string; updatedAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -117,6 +117,7 @@ const AdminClientDetail: React.FC = () => {
   // Notes State
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [newNote, setNewNote] = useState("");
+  const [newNoteVisible, setNewNoteVisible] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [editNoteId, setEditNoteId] = useState<string | null>(null);
   const [editNoteContent, setEditNoteContent] = useState("");
@@ -230,6 +231,7 @@ const AdminClientDetail: React.FC = () => {
         return {
           id: n.id, content: n.content, createdBy: n.created_by,
           authorName: author ? `${author.first_name} ${author.last_name}` : undefined,
+          visibleToClient: n.visible_to_client,
           createdAt: n.created_at, updatedAt: n.updated_at,
         };
       }));
@@ -560,10 +562,12 @@ const AdminClientDetail: React.FC = () => {
       client_id: clientId,
       content: newNote.trim(),
       created_by: session?.user?.id || null,
+      visible_to_client: newNoteVisible,
     });
     setSavingNote(false);
     if (!error) {
       setNewNote("");
+      setNewNoteVisible(false);
       toast({ title: "Note Added" });
       loadAll();
     } else {
@@ -588,6 +592,16 @@ const AdminClientDetail: React.FC = () => {
     } else {
       console.error(error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const toggleNoteVisibility = async (note: NoteRow) => {
+    const { error } = await supabase.from("client_notes").update({
+      visible_to_client: !note.visibleToClient,
+    }).eq("id", note.id);
+    if (!error) {
+      toast({ title: note.visibleToClient ? "Note hidden from client" : "Note shared with client" });
+      loadAll();
     }
   };
 
@@ -1054,38 +1068,49 @@ const AdminClientDetail: React.FC = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-medium flex items-center gap-2">
-                <StickyNote className="h-4 w-4" /> Internal Notes
-                <Badge variant="outline" className="text-[10px] ml-1">Team Only</Badge>
+                <StickyNote className="h-4 w-4" /> Notes
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Private notes visible only to admins and managers. Clients cannot see these.</p>
+              <p className="text-xs text-muted-foreground">Add notes for this client. Toggle visibility to share specific notes with the client.</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Add Note */}
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <textarea
-                    value={newNote}
-                    onChange={e => setNewNote(e.target.value)}
-                    placeholder="Add an internal note..."
-                    rows={2}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        addNote();
-                      }
-                    }}
-                  />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <textarea
+                      value={newNote}
+                      onChange={e => setNewNote(e.target.value)}
+                      placeholder="Write a note..."
+                      rows={2}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          addNote();
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="self-end h-9 gap-1.5"
+                    onClick={addNote}
+                    disabled={savingNote || !newNote.trim()}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {savingNote ? "Saving..." : "Add"}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  className="self-end h-9 gap-1.5"
-                  onClick={addNote}
-                  disabled={savingNote || !newNote.trim()}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  {savingNote ? "Saving..." : "Add"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="note-visible"
+                    checked={newNoteVisible}
+                    onCheckedChange={c => setNewNoteVisible(!!c)}
+                  />
+                  <Label htmlFor="note-visible" className="text-xs text-muted-foreground cursor-pointer">
+                    {newNoteVisible ? "Visible to client" : "Internal only — not visible to client"}
+                  </Label>
+                </div>
               </div>
 
               {/* Notes List */}
@@ -1094,7 +1119,7 @@ const AdminClientDetail: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {notes.map(n => (
-                    <div key={n.id} className="p-3 rounded-lg border group hover:border-primary/30 transition-colors">
+                    <div key={n.id} className={`p-3 rounded-lg border group hover:border-primary/30 transition-colors ${n.visibleToClient ? "border-primary/20 bg-primary/[0.02]" : ""}`}>
                       {editNoteId === n.id ? (
                         <div className="space-y-2">
                           <textarea
@@ -1124,6 +1149,13 @@ const AdminClientDetail: React.FC = () => {
                               {n.updatedAt !== n.createdAt && (
                                 <span className="italic">(edited)</span>
                               )}
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] cursor-pointer select-none ${n.visibleToClient ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}
+                                onClick={() => toggleNoteVisibility(n)}
+                              >
+                                {n.visibleToClient ? <><Eye className="h-3 w-3 mr-1" />Visible</> : <><EyeOff className="h-3 w-3 mr-1" />Internal</>}
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditNoteId(n.id); setEditNoteContent(n.content); }}>

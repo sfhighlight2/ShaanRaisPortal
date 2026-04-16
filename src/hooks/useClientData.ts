@@ -6,6 +6,13 @@ import type {
   Client, Project, Phase, Task, Deliverable, Document, ClientLink, Update, Question, User 
 } from "@/lib/types";
 
+export interface ClientNote {
+  id: string;
+  content: string;
+  authorName?: string;
+  createdAt: string;
+}
+
 export interface ClientDataState {
   client: Client | null;
   project: Project | null;
@@ -16,6 +23,7 @@ export interface ClientDataState {
   documents: Document[];
   updates: Update[];
   questions: Question[];
+  notes: ClientNote[];
   accountManager: User | null;
   loading: boolean;
   error: Error | null;
@@ -35,6 +43,7 @@ export function useClientData() {
     documents: [],
     updates: [],
     questions: [],
+    notes: [],
     accountManager: null,
     loading: true,
     error: null,
@@ -226,11 +235,12 @@ export function useClientData() {
       }
 
       // 5. Fetch documents, updates, questions
-      const [docsRes, linksRes, updatesRes, questionsRes] = await Promise.all([
+      const [docsRes, linksRes, updatesRes, questionsRes, notesRes] = await Promise.all([
         supabase.from("documents").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("uploaded_at", { ascending: false }),
         supabase.from("client_links").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
         supabase.from("updates").select("*, created_by_user:profiles!created_by(*)").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
         supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("client_notes").select("*, author:profiles!created_by(first_name, last_name)").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
       ]);
 
       if (docsRes.error) throw docsRes.error;
@@ -286,6 +296,16 @@ export function useClientData() {
         createdAt: q.created_at,
       }));
 
+      const formattedNotes: ClientNote[] = (notesRes.data || []).map(n => {
+        const author = Array.isArray(n.author) ? n.author[0] : n.author;
+        return {
+          id: n.id,
+          content: n.content,
+          authorName: author ? `${author.first_name} ${author.last_name}` : undefined,
+          createdAt: n.created_at,
+        };
+      });
+
       setData({
         client: formattedClient,
         project: formattedProject,
@@ -296,6 +316,7 @@ export function useClientData() {
         documents: formattedDocuments,
         updates: formattedUpdates,
         questions: formattedQuestions,
+        notes: formattedNotes,
         accountManager,
         loading: false,
         error: null,
