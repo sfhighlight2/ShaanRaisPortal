@@ -5,7 +5,8 @@ import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
-  Globe, FolderOpen, Video, Table2, Palette, Upload, X
+  Globe, FolderOpen, Video, Table2, Palette, Upload, X,
+  Instagram, Twitter, Linkedin, Youtube, Facebook, Hash
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -529,11 +530,15 @@ const AdminClientDetail: React.FC = () => {
   const linkTypeIcons: Record<LinkType, React.ElementType> = {
     folder: FolderOpen, document: FileText, video: Video,
     spreadsheet: Table2, design: Palette, other: Globe,
+    website: Globe, instagram: Instagram, facebook: Facebook,
+    twitter: Twitter, linkedin: Linkedin, tiktok: Hash, youtube: Youtube,
   };
 
   const linkTypeLabels: Record<LinkType, string> = {
     folder: "Folder", document: "Document", video: "Video",
     spreadsheet: "Spreadsheet", design: "Design", other: "Link",
+    website: "Website", instagram: "Instagram", facebook: "Facebook",
+    twitter: "Twitter / X", linkedin: "LinkedIn", tiktok: "TikTok", youtube: "YouTube",
   };
 
   if (loading) {
@@ -1196,12 +1201,20 @@ const AdminClientDetail: React.FC = () => {
               <Select value={linkForm.linkType} onValueChange={v => setLinkForm(f => ({ ...f, linkType: v as LinkType }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="folder">Folder</SelectItem>
-                  <SelectItem value="document">Document</SelectItem>
-                  <SelectItem value="video">Video</SelectItem>
-                  <SelectItem value="spreadsheet">Spreadsheet</SelectItem>
-                  <SelectItem value="design">Design</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="folder">📁 Folder</SelectItem>
+                  <SelectItem value="document">📄 Document</SelectItem>
+                  <SelectItem value="video">🎬 Video</SelectItem>
+                  <SelectItem value="spreadsheet">📊 Spreadsheet</SelectItem>
+                  <SelectItem value="design">🎨 Design</SelectItem>
+                  <SelectItem value="website">🌐 Website</SelectItem>
+                  <SelectItem value="other">🔗 Other</SelectItem>
+                  <SelectItem value="__social__" disabled className="font-medium text-muted-foreground text-[11px] pointer-events-none opacity-60 mt-1 cursor-default">── Social Media ──</SelectItem>
+                  <SelectItem value="instagram">📸 Instagram</SelectItem>
+                  <SelectItem value="facebook">👥 Facebook</SelectItem>
+                  <SelectItem value="twitter">🐦 Twitter / X</SelectItem>
+                  <SelectItem value="linkedin">💼 LinkedIn</SelectItem>
+                  <SelectItem value="tiktok">🎵 TikTok</SelectItem>
+                  <SelectItem value="youtube">▶️ YouTube</SelectItem>
                 </SelectContent>
               </Select>
             </div>

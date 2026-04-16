@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { ExternalLink, FolderOpen, FileText, Video, Table2, Palette, Link2, Globe } from "lucide-react";
+import { ExternalLink, FolderOpen, FileText, Video, Table2, Palette, Link2, Globe, Instagram, Twitter, Linkedin, Youtube, Facebook, Hash } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,13 @@ const linkTypeIcons: Record<LinkType, React.ElementType> = {
   spreadsheet: Table2,
   design: Palette,
   other: Globe,
+  website: Globe,
+  instagram: Instagram,
+  facebook: Facebook,
+  twitter: Twitter,
+  linkedin: Linkedin,
+  tiktok: Hash,
+  youtube: Youtube,
 };
 
 const linkTypeLabels: Record<LinkType, string> = {
@@ -23,6 +30,13 @@ const linkTypeLabels: Record<LinkType, string> = {
   spreadsheet: "Spreadsheet",
   design: "Design",
   other: "Link",
+  website: "Website",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  twitter: "Twitter / X",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  youtube: "YouTube",
 };
 
 const linkTypeColors: Record<LinkType, string> = {
@@ -32,6 +46,13 @@ const linkTypeColors: Record<LinkType, string> = {
   spreadsheet: "bg-success/10 text-success",
   design: "bg-violet-500/10 text-violet-600",
   other: "bg-muted text-muted-foreground",
+  website: "bg-sky-500/10 text-sky-600",
+  instagram: "bg-pink-500/10 text-pink-600",
+  facebook: "bg-blue-600/10 text-blue-600",
+  twitter: "bg-sky-400/10 text-sky-500",
+  linkedin: "bg-blue-700/10 text-blue-700",
+  tiktok: "bg-neutral-800/10 text-neutral-600",
+  youtube: "bg-red-500/10 text-red-600",
 };
 
 const ClientLinks: React.FC = () => {
@@ -55,7 +76,7 @@ const ClientLinks: React.FC = () => {
     return acc;
   }, {} as Record<string, typeof links>);
 
-  const typeOrder: LinkType[] = ["folder", "document", "video", "spreadsheet", "design", "other"];
+  const typeOrder: LinkType[] = ["folder", "document", "video", "spreadsheet", "design", "website", "instagram", "facebook", "twitter", "linkedin", "tiktok", "youtube", "other"];
   const sortedGroups = typeOrder.filter(t => groupedLinks[t]?.length);
 
   return (

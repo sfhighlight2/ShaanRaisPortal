@@ -108,7 +108,20 @@ export interface Document {
   uploadedAt: string;
 }
 
-export type LinkType = "folder" | "document" | "video" | "spreadsheet" | "design" | "other";
+export type LinkType =
+  | "folder"
+  | "document"
+  | "video"
+  | "spreadsheet"
+  | "design"
+  | "website"
+  | "instagram"
+  | "facebook"
+  | "twitter"
+  | "linkedin"
+  | "tiktok"
+  | "youtube"
+  | "other";
 
 export interface ClientLink {
   id: string;
