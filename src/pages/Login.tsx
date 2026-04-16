@@ -110,7 +110,7 @@ const Login: React.FC = () => {
             <button className="text-primary hover:underline">Reset it here</button>
           </p>
 
-          {/* Dev helper */}
+          {/* Dev helper — hidden for now
           <div className="mt-10 pt-6 border-t border-border">
             <p className="text-[11px] text-muted-foreground mb-2">Quick login (dev only):</p>
             <div className="flex gap-2 flex-wrap">
@@ -129,6 +129,7 @@ const Login: React.FC = () => {
               ))}
             </div>
           </div>
+          */}
         </motion.div>
       </div>
     </div>
