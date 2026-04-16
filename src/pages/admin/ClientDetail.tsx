@@ -139,7 +139,7 @@ const AdminClientDetail: React.FC = () => {
       // Client + manager
       const { data: c } = await supabase
         .from("clients")
-        .select("*, manager:profiles!account_manager_id(first_name, last_name)")
+        .select("*, manager:profiles!account_manager_id(id, first_name, last_name)")
         .eq("id", clientId)
         .single();
 
@@ -324,7 +324,7 @@ const AdminClientDetail: React.FC = () => {
     
     // Auto-calculate sort_order for new tasks based on current max
     const phaseTasks = tasks.filter(t => t.phaseId === taskForm.phaseId);
-    let sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
+    const sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
 
     if (editTask) {
       const { error: err } = await supabase.from("tasks").update({
