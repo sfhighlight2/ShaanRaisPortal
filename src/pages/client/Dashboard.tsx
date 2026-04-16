@@ -105,7 +105,7 @@ const ClientDashboard: React.FC = () => {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <Badge variant="outline" className="mt-1.5 capitalize">{client.status.replace("_", " ")}</Badge>
+                <Badge variant="outline" className="mt-1.5 capitalize">{client.status.replaceAll("_", " ")}</Badge>
               </TooltipTrigger>
               <TooltipContent>
                 <p className="text-xs">Your current relationship status with our team</p>

@@ -187,7 +187,7 @@ const AdminDashboard: React.FC = () => {
                     <TableCell><p className="text-sm text-muted-foreground">{client.package ?? "—"}</p></TableCell>
                     <TableCell>
                       <Badge className={`text-[10px] font-medium ${statusColors[client.status]}`}>
-                        {client.status.replace("_", " ")}
+                        {client.status.replaceAll("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell><p className="text-sm text-muted-foreground">{client.currentPhase ?? "—"}</p></TableCell>

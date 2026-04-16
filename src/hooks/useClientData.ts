@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import type { 
-  Client, Project, Phase, Task, Deliverable, Document, Update, Question, User 
+  Client, Project, Phase, Task, Deliverable, Document, ClientLink, Update, Question, User 
 } from "@/lib/types";
 
 export interface ClientDataState {
@@ -12,6 +12,7 @@ export interface ClientDataState {
   phases: Phase[];
   tasks: Task[];
   deliverables: Deliverable[];
+  links: ClientLink[];
   documents: Document[];
   updates: Update[];
   questions: Question[];
@@ -30,6 +31,7 @@ export function useClientData() {
     phases: [],
     tasks: [],
     deliverables: [],
+    links: [],
     documents: [],
     updates: [],
     questions: [],
@@ -224,8 +226,9 @@ export function useClientData() {
       }
 
       // 5. Fetch documents, updates, questions
-      const [docsRes, updatesRes, questionsRes] = await Promise.all([
+      const [docsRes, linksRes, updatesRes, questionsRes] = await Promise.all([
         supabase.from("documents").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("uploaded_at", { ascending: false }),
+        supabase.from("client_links").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
         supabase.from("updates").select("*, created_by_user:profiles!created_by(*)").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
         supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
       ]);
@@ -239,6 +242,18 @@ export function useClientData() {
         fileUrl: d.file_url,
         visibleToClient: d.visible_to_client,
         uploadedAt: d.uploaded_at,
+      }));
+
+      if (linksRes.error) throw linksRes.error;
+      const formattedLinks: ClientLink[] = (linksRes.data || []).map(l => ({
+        id: l.id,
+        clientId: l.client_id,
+        title: l.title,
+        url: l.url,
+        linkType: l.link_type,
+        description: l.description,
+        visibleToClient: l.visible_to_client,
+        createdAt: l.created_at,
       }));
 
       if (updatesRes.error) throw updatesRes.error;
@@ -277,6 +292,7 @@ export function useClientData() {
         phases: formattedPhases,
         tasks: formattedTasks,
         deliverables: formattedDeliverables,
+        links: formattedLinks,
         documents: formattedDocuments,
         updates: formattedUpdates,
         questions: formattedQuestions,

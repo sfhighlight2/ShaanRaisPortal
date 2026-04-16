@@ -37,6 +37,7 @@ export const ImpersonationBanner: React.FC = () => {
             { label: "Tasks", path: "tasks" },
             { label: "Deliverables", path: "deliverables" },
             { label: "Documents", path: "documents" },
+            { label: "Links", path: "links" },
             { label: "Updates", path: "updates" },
           ].map(({ label, path }) => (
             <button

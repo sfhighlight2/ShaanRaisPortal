@@ -17,6 +17,7 @@ import ClientDashboard from "./pages/client/Dashboard";
 import ClientTasks from "./pages/client/Tasks";
 import ClientDeliverables from "./pages/client/Deliverables";
 import ClientDocuments from "./pages/client/Documents";
+import ClientLinks from "./pages/client/Links";
 import ClientUpdates from "./pages/client/Updates";
 import ClientProfile from "./pages/client/Profile";
 
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/tasks" element={<ClientTasks />} />
         <Route path="/deliverables" element={<ClientDeliverables />} />
         <Route path="/documents" element={<ClientDocuments />} />
+        <Route path="/links" element={<ClientLinks />} />
         <Route path="/updates" element={<ClientUpdates />} />
         <Route path="/profile" element={<ClientProfile />} />
         <Route path="/help" element={<HelpCenter />} />
@@ -99,6 +101,7 @@ function AppRoutes() {
             <Route path="/admin/clients/:clientId/view/tasks" element={<ClientTasks />} />
             <Route path="/admin/clients/:clientId/view/deliverables" element={<ClientDeliverables />} />
             <Route path="/admin/clients/:clientId/view/documents" element={<ClientDocuments />} />
+            <Route path="/admin/clients/:clientId/view/links" element={<ClientLinks />} />
             <Route path="/admin/clients/:clientId/view/updates" element={<ClientUpdates />} />
           </>
         )}

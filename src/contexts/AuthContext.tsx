@@ -54,7 +54,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const init = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Race the session check against a timeout to prevent hanging on
+        // browsers with strict cookie/storage policies (Safari Private, Brave, etc.)
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => {
+              console.warn("Auth session check timed out after 10 seconds.");
+              resolve({ data: { session: null } });
+            }, 10_000)
+          ),
+        ]);
+        const session = sessionResult.data.session;
         if (session?.user) {
           let profile = await fetchProfile(session.user.id);
           if (!profile) {

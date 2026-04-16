@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, CheckSquare, Package, FileText,
+  LayoutDashboard, CheckSquare, Package, FileText, Link2,
   Bell, User, Settings, Users, Inbox, ClipboardList, BarChart3, Blocks,
   GraduationCap, BookOpen, HelpCircle,
 } from "lucide-react";
@@ -22,6 +22,7 @@ const clientNav = [
   { title: "My Tasks", url: "/tasks", icon: CheckSquare },
   { title: "Deliverables", url: "/deliverables", icon: Package },
   { title: "Documents", url: "/documents", icon: FileText },
+  { title: "Links", url: "/links", icon: Link2 },
   { title: "Updates", url: "/updates", icon: Bell },
   { title: "Profile", url: "/profile", icon: User },
   { title: "Help", url: "/help", icon: HelpCircle },
@@ -65,6 +66,7 @@ export function AppSidebar() {
     { title: "My Tasks", url: `/admin/clients/${impersonatedClientId}/view/tasks`, icon: CheckSquare },
     { title: "Deliverables", url: `/admin/clients/${impersonatedClientId}/view/deliverables`, icon: Package },
     { title: "Documents", url: `/admin/clients/${impersonatedClientId}/view/documents`, icon: FileText },
+    { title: "Links", url: `/admin/clients/${impersonatedClientId}/view/links`, icon: Link2 },
     { title: "Updates", url: `/admin/clients/${impersonatedClientId}/view/updates`, icon: Bell },
   ] : clientNav;
 

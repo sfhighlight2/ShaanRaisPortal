@@ -140,7 +140,7 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
-              <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+              <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -489,7 +489,7 @@ const AdminClients: React.FC = () => {
                         <Tooltip>
                           <TooltipTrigger>
                             <Badge className={`text-[10px] font-medium ${statusColors[client.status] ?? ""}`}>
-                              {client.status.replace("_", " ")}
+                              {client.status.replaceAll("_", " ")}
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -572,7 +572,7 @@ const AdminClients: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className={`h-2 w-2 rounded-full ${styles.dot}`} />
                         <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                          {status.replace("_", " ")}
+                          {status.replaceAll("_", " ")}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground font-medium">{colClients.length}</span>
@@ -631,7 +631,7 @@ const AdminClients: React.FC = () => {
                             className="mt-2 w-full text-[10px] bg-muted border-0 rounded px-1.5 py-1 text-muted-foreground cursor-pointer"
                           >
                             {KANBAN_STATUSES.map(s => (
-                              <option key={s} value={s}>{s.replace("_", " ")}</option>
+                              <option key={s} value={s}>{s.replaceAll("_", " ")}</option>
                             ))}
                           </select>
                         </div>

@@ -108,6 +108,19 @@ export interface Document {
   uploadedAt: string;
 }
 
+export type LinkType = "folder" | "document" | "video" | "spreadsheet" | "design" | "other";
+
+export interface ClientLink {
+  id: string;
+  clientId: string;
+  title: string;
+  url: string;
+  linkType: LinkType;
+  description?: string;
+  visibleToClient: boolean;
+  createdAt: string;
+}
+
 export interface Update {
   id: string;
   clientId: string;

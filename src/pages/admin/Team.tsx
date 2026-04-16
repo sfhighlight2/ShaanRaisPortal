@@ -239,7 +239,7 @@ const AdminTeam: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge className={`text-[10px] capitalize ${roleColors[member.role]}`}>
-                        {member.role.replace("_", " ")}
+                        {member.role.replaceAll("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell>

@@ -127,7 +127,7 @@ const ClientProfile: React.FC = () => {
             )}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Status</p>
-              <Badge variant="outline" className="capitalize">{client.status.replace("_", " ")}</Badge>
+              <Badge variant="outline" className="capitalize">{client.status.replaceAll("_", " ")}</Badge>
             </div>
           </CardContent>
         </Card>

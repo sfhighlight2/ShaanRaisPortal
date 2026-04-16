@@ -4,7 +4,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
-  Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users
+  Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
+  Globe, FolderOpen, Video, Table2, Palette
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import type { ClientStatus, PhaseStatus, PackageTemplate } from "@/lib/types";
+import type { ClientStatus, PhaseStatus, PackageTemplate, LinkType } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
@@ -62,6 +63,7 @@ interface Update { id: string; title: string; createdAt: string; }
 interface Question { id: string; subject: string; message: string; response?: string; status: string; }
 interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
 interface DocumentRow { id: string; title: string; documentType: string; fileUrl?: string; visibleToClient: boolean; uploadedAt: string; }
+interface LinkRow { id: string; title: string; url: string; linkType: LinkType; description?: string; visibleToClient: boolean; createdAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -100,11 +102,18 @@ const AdminClientDetail: React.FC = () => {
   const [docForm, setDocForm] = useState({ title: "", documentType: "other", fileUrl: "", visibleToClient: true });
   const [savingDoc, setSavingDoc] = useState(false);
 
+  // Link State
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [editLink, setEditLink] = useState<LinkRow | null>(null);
+  const [linkForm, setLinkForm] = useState({ title: "", url: "", linkType: "other" as LinkType, description: "", visibleToClient: true });
+  const [savingLink, setSavingLink] = useState(false);
+
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [clientLinks, setClientLinks] = useState<LinkRow[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -173,12 +182,13 @@ const AdminClientDetail: React.FC = () => {
         }
       }
 
-      // Updates, Questions, Activity, Documents
-      const [updatesRes, questionsRes, activityRes, docsRes] = await Promise.all([
+      // Updates, Questions, Activity, Documents, Links
+      const [updatesRes, questionsRes, activityRes, docsRes, linksRes] = await Promise.all([
         supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
         supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
         supabase.from("activity_logs").select("id, event_label, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(10),
         supabase.from("documents").select("*").eq("client_id", clientId).order("uploaded_at", { ascending: false }),
+        supabase.from("client_links").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
       ]);
 
       setUpdates((updatesRes.data || []).map(u => ({ id: u.id, title: u.title, createdAt: u.created_at })));
@@ -189,6 +199,10 @@ const AdminClientDetail: React.FC = () => {
       setDocuments((docsRes.data || []).map(d => ({
         id: d.id, title: d.title, documentType: d.document_type, fileUrl: d.file_url ?? undefined,
         visibleToClient: d.visible_to_client, uploadedAt: d.uploaded_at,
+      })));
+      setClientLinks((linksRes.data || []).map(l => ({
+        id: l.id, title: l.title, url: l.url, linkType: l.link_type as LinkType,
+        description: l.description ?? undefined, visibleToClient: l.visible_to_client, createdAt: l.created_at,
       })));
     } catch (err) {
       console.error("ClientDetail load error:", err);
@@ -395,6 +409,63 @@ const AdminClientDetail: React.FC = () => {
     if (!error) { toast({ title: "Document Deleted" }); loadAll(); }
   };
 
+  // Link CRUD
+  const openLinkDialog = (l?: LinkRow) => {
+    if (l) {
+      setEditLink(l);
+      setLinkForm({ title: l.title, url: l.url, linkType: l.linkType, description: l.description || "", visibleToClient: l.visibleToClient });
+    } else {
+      setEditLink(null);
+      setLinkForm({ title: "", url: "", linkType: "other", description: "", visibleToClient: true });
+    }
+    setShowLinkDialog(true);
+  };
+
+  const saveLink = async () => {
+    if (!linkForm.title || !linkForm.url || !clientId) return;
+    setSavingLink(true);
+    let error;
+    if (editLink) {
+      const { error: err } = await supabase.from("client_links").update({
+        title: linkForm.title, url: linkForm.url, link_type: linkForm.linkType,
+        description: linkForm.description || null, visible_to_client: linkForm.visibleToClient,
+      }).eq("id", editLink.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from("client_links").insert({
+        client_id: clientId, title: linkForm.title, url: linkForm.url,
+        link_type: linkForm.linkType, description: linkForm.description || null,
+        visible_to_client: linkForm.visibleToClient,
+      });
+      error = err;
+    }
+    setSavingLink(false);
+    if (!error) {
+      setShowLinkDialog(false);
+      toast({ title: editLink ? "Link Updated" : "Link Added" });
+      loadAll();
+    } else {
+      console.error(error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const deleteLink = async (id: string) => {
+    if (!confirm("Delete this link?")) return;
+    const { error } = await supabase.from("client_links").delete().eq("id", id);
+    if (!error) { toast({ title: "Link Deleted" }); loadAll(); }
+  };
+
+  const linkTypeIcons: Record<LinkType, React.ElementType> = {
+    folder: FolderOpen, document: FileText, video: Video,
+    spreadsheet: Table2, design: Palette, other: Globe,
+  };
+
+  const linkTypeLabels: Record<LinkType, string> = {
+    folder: "Folder", document: "Document", video: "Video",
+    spreadsheet: "Spreadsheet", design: "Design", other: "Link",
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -421,7 +492,7 @@ const AdminClientDetail: React.FC = () => {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-heading font-semibold text-foreground">{client.companyName}</h1>
               <Badge className={`text-xs ${statusColors[client.status]}`}>
-                {client.status.replace("_", " ")}
+                {client.status.replaceAll("_", " ")}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -523,7 +594,7 @@ const AdminClientDetail: React.FC = () => {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
-                        <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+                        <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -585,7 +656,7 @@ const AdminClientDetail: React.FC = () => {
                 <Select value={taskForm.status} onValueChange={v => setTaskForm(f => ({ ...f, status: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {(["pending", "in_progress", "completed", "failed"]).map(s => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
+                    {(["pending", "in_progress", "completed", "failed"]).map(s => <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -635,6 +706,7 @@ const AdminClientDetail: React.FC = () => {
           <TabsTrigger value="tasks" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Tasks</TabsTrigger>
           <TabsTrigger value="deliverables" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Deliverables</TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5"><File className="h-3.5 w-3.5" /> Documents</TabsTrigger>
+          <TabsTrigger value="links" className="gap-1.5"><Link2 className="h-3.5 w-3.5" /> Links</TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5"><Activity className="h-3.5 w-3.5" /> Activity</TabsTrigger>
           <TabsTrigger value="questions" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Questions</TabsTrigger>
         </TabsList>
@@ -793,6 +865,45 @@ const AdminClientDetail: React.FC = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="links" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-medium">Client Links</CardTitle>
+              <Button size="sm" onClick={() => openLinkDialog()}><Plus className="h-4 w-4 mr-2" /> Add Link</Button>
+            </CardHeader>
+            <CardContent>
+              {clientLinks.length === 0 ? <p className="text-sm text-muted-foreground py-4">No links.</p> : (
+                <div className="space-y-2">
+                  {clientLinks.map(l => {
+                    const LIcon = linkTypeIcons[l.linkType];
+                    return (
+                      <div key={l.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
+                        <LIcon className="h-4 w-4 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate">{l.title}</a>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className="text-[10px]">{linkTypeLabels[l.linkType]}</Badge>
+                            {l.description && <span className="text-[11px] text-muted-foreground truncate">{l.description}</span>}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] hidden md:inline-flex ${l.visibleToClient ? "bg-primary/5 border-primary/20" : "bg-muted text-muted-foreground"}`}>
+                          {l.visibleToClient ? "Visible" : "Internal"}
+                        </Badge>
+                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openLinkDialog(l)}><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteLink(l.id)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="activity" className="mt-6">
           <Card>
             <CardContent className="p-4">
@@ -867,6 +978,49 @@ const AdminClientDetail: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDocDialog(false)}>Cancel</Button>
             <Button onClick={saveDoc} disabled={savingDoc || !docForm.title}>{savingDoc ? "Saving..." : editDoc ? "Update" : "Add Document"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editLink ? "Edit Link" : "Add Link"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-sm font-medium">Title</Label>
+              <Input className="mt-1" value={linkForm.title} onChange={e => setLinkForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Brand Assets Folder" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">URL</Label>
+              <Input className="mt-1" value={linkForm.url} onChange={e => setLinkForm(f => ({ ...f, url: e.target.value }))} placeholder="https://..." />
+              <p className="text-xs text-muted-foreground mt-1">Paste a Google Drive, Dropbox, Loom, or any link</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Link Type</Label>
+              <Select value={linkForm.linkType} onValueChange={v => setLinkForm(f => ({ ...f, linkType: v as LinkType }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="folder">Folder</SelectItem>
+                  <SelectItem value="document">Document</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                  <SelectItem value="spreadsheet">Spreadsheet</SelectItem>
+                  <SelectItem value="design">Design</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Description (optional)</Label>
+              <Input className="mt-1" value={linkForm.description} onChange={e => setLinkForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description..." />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="link-visible" checked={linkForm.visibleToClient} onCheckedChange={c => setLinkForm(f => ({ ...f, visibleToClient: !!c }))} />
+              <Label htmlFor="link-visible" className="text-sm">Visible to client</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)}>Cancel</Button>
+            <Button onClick={saveLink} disabled={savingLink || !linkForm.title || !linkForm.url}>{savingLink ? "Saving..." : editLink ? "Update" : "Add Link"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
