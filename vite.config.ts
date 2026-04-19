@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import compression from "vite-plugin-compression";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -11,7 +12,15 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react()].filter(Boolean),
+  plugins: [
+    react(),
+    // Pre-compress all JS/CSS assets at build time.
+    // Hosts serving static files (Nginx, Caddy, custom servers) can serve
+    // the .gz / .br files directly — zero runtime CPU cost.
+    // Netlify and Vercel apply their own compression, so this is bonus coverage.
+    compression({ algorithm: "gzip", ext: ".gz" }),
+    compression({ algorithm: "brotliCompress", ext: ".br" }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
