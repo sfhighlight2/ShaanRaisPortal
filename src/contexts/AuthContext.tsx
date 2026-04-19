@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isSupabaseConfigured) return null;
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, first_name, last_name, email, role, profile_photo, status, created_at")
       .eq("id", userId)
       .single();
     if (error || !data) return null;
@@ -60,9 +60,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.auth.getSession(),
           new Promise<{ data: { session: null } }>((resolve) =>
             setTimeout(() => {
-              console.warn("Auth session check timed out after 10 seconds.");
+              console.warn("Auth session check timed out after 3 seconds.");
               resolve({ data: { session: null } });
-            }, 10_000)
+            }, 3_000)
           ),
         ]);
         const session = sessionResult.data.session;
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!profile) {
             const { data } = await supabase
               .from("profiles")
-              .select("*")
+              .select("id, first_name, last_name, email, role, profile_photo, status, created_at")
               .eq("email", session.user.email)
               .single();
             if (data) {
@@ -164,8 +164,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Dev-only: switch role by signing in as a different demo user
+  // This function is only callable from the dev role-switcher UI (import.meta.env.DEV guard).
+  // The additional check here ensures it can never execute in a production build.
   const switchRole = useCallback(async (role: UserRole) => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured || !import.meta.env.DEV) return;
     const roleEmails: Record<UserRole, string> = {
       admin: "sarah@shaanrais.com",
       manager: "james@shaanrais.com",

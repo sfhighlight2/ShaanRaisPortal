@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { edgeFetch } from "@/lib/edgeFetch";
 import type { Question, Client } from "@/lib/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ const AdminQuestions: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -73,6 +75,7 @@ const AdminQuestions: React.FC = () => {
 
   const handleSendResponse = async () => {
     if (!selectedQuestion || !responseText.trim() || !user) return;
+    setSending(true);
     try {
       const { error } = await supabase.from("questions").update({
         status: "answered",
@@ -97,23 +100,15 @@ const AdminQuestions: React.FC = () => {
         description: "Failed to send response.",
         variant: "destructive",
       });
+    } finally {
+      setSending(false);
     }
   };
 
   const handleDeleteQuestion = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this question?")) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("No active session.");
-
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action: "delete_question", question_id: id }),
-      });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-
+      await edgeFetch("create-user", { action: "delete_question", question_id: id });
       toast({ title: "Deleted", description: "Question deleted successfully." });
       loadData();
     } catch (err: any) {
@@ -245,8 +240,8 @@ const AdminQuestions: React.FC = () => {
                                 />
                                 <div className="flex justify-end gap-2">
                                   <Button variant="outline" size="sm" onClick={() => setSelectedQuestion(null)}>Cancel</Button>
-                                  <Button size="sm" className="gap-1.5" onClick={handleSendResponse}>
-                                    <Send className="h-3.5 w-3.5" /> Send Response
+                                  <Button size="sm" className="gap-1.5" onClick={handleSendResponse} disabled={sending}>
+                                    <Send className="h-3.5 w-3.5" /> {sending ? "Sending..." : "Send Response"}
                                   </Button>
                                 </div>
                               </div>

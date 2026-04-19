@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import logoImg from "@/assets/shaan-rais-logo.png";
@@ -12,6 +12,9 @@ const Login: React.FC = () => {
   const [error, setError] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +28,21 @@ const Login: React.FC = () => {
     if (!success) setError("Invalid email or password");
   };
 
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError("Enter your email address above first");
+      return;
+    }
+    if (!isSupabaseConfigured) return;
+    setResetSubmitting(true);
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setResetSubmitting(false);
+    setResetSent(true);
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Left branded panel */}
@@ -33,13 +51,8 @@ const Login: React.FC = () => {
           backgroundImage: "radial-gradient(circle at 1px 1px, hsl(37,45%,49%) 1px, transparent 0)",
           backgroundSize: "40px 40px",
         }} />
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="relative z-10 flex flex-col items-center text-center max-w-md"
-        >
-          <img src={logoImg} alt="Shaan Rais Media" className="h-56 w-auto mb-8" />
+        <div className="animate-fade-in relative z-10 flex flex-col items-center text-center max-w-md">
+          <img src={logoImg} alt="Shaan Rais Media" className="h-56 w-auto mb-8" width={224} height={224} />
           <div className="w-12 h-0.5 bg-[hsl(37,45%,49%)] mb-6" />
           <p className="text-lg text-[hsl(0,0%,50%)] leading-relaxed">
             Your dedicated client portal. Track progress, access deliverables, and stay connected with your team.
@@ -47,90 +60,96 @@ const Login: React.FC = () => {
           <p className="text-sm text-[hsl(0,0%,35%)] mt-8">
             Scale with clarity and confidence.
           </p>
-        </motion.div>
+        </div>
       </div>
 
       {/* Right login form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="w-full max-w-sm"
+        <div
+          className="animate-fade-in w-full max-w-sm"
+          style={{ animationDelay: "100ms", animationFillMode: "both" }}
         >
           <div className="lg:hidden mb-8 flex flex-col items-center">
-            <img src={logoImg} alt="Shaan Rais Media" className="h-28 w-auto mb-2" />
+            <img src={logoImg} alt="Shaan Rais Media" className="h-28 w-auto mb-2" width={112} height={112} />
             <p className="text-sm text-muted-foreground">Client Portal</p>
           </div>
 
-          <h2 className="text-2xl font-heading font-semibold text-foreground">
-            Welcome back
-          </h2>
-          <p className="text-sm text-muted-foreground mt-2 mb-8">
-            Sign in to access your portal
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">
-                Email
-              </label>
-              <Input
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                className="h-11"
-              />
+          {resetSent ? (
+            <div className="text-center space-y-3">
+              <h2 className="text-2xl font-heading font-semibold text-foreground">Check your email</h2>
+              <p className="text-sm text-muted-foreground">
+                We sent a password reset link to <strong>{email}</strong>.
+              </p>
+              <button
+                className="text-sm text-primary hover:underline mt-4 block mx-auto"
+                onClick={() => { setResetSent(false); setResetMode(false); }}
+              >
+                Back to sign in
+              </button>
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">
-                Password
-              </label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                className="h-11"
-              />
-            </div>
+          ) : (
+            <>
+              <h2 className="text-2xl font-heading font-semibold text-foreground">
+                {resetMode ? "Reset password" : "Welcome back"}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2 mb-8">
+                {resetMode ? "Enter your email and we'll send a reset link" : "Sign in to access your portal"}
+              </p>
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+              <form onSubmit={resetMode ? handleReset : handleSubmit} className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                    className="h-11"
+                  />
+                </div>
+                {!resetMode && (
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                      className="h-11"
+                    />
+                  </div>
+                )}
 
-            <Button type="submit" className="w-full h-11 text-sm font-medium" disabled={submitting}>
-              {submitting ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
+                {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <p className="text-xs text-muted-foreground mt-6 text-center">
-            Forgot your password?{" "}
-            <button className="text-primary hover:underline">Reset it here</button>
-          </p>
-
-          {/* Dev helper — hidden for now
-          <div className="mt-10 pt-6 border-t border-border">
-            <p className="text-[11px] text-muted-foreground mb-2">Quick login (dev only):</p>
-            <div className="flex gap-2 flex-wrap">
-              {[
-                { label: "Client", email: "david@thorntongroup.com" },
-                { label: "Admin", email: "sarah@shaanrais.com" },
-                { label: "Manager", email: "james@shaanrais.com" },
-              ].map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => login(opt.email, "Demo1234!")}
-                  className="text-[11px] px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-sm font-medium"
+                  disabled={submitting || resetSubmitting}
                 >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          */}
-        </motion.div>
+                  {resetMode
+                    ? (resetSubmitting ? "Sending…" : "Send reset link")
+                    : (submitting ? "Signing in…" : "Sign in")}
+                </Button>
+              </form>
+
+              <p className="text-xs text-muted-foreground mt-6 text-center">
+                {resetMode ? (
+                  <button className="text-primary hover:underline" onClick={() => { setResetMode(false); setError(""); }}>
+                    Back to sign in
+                  </button>
+                ) : (
+                  <>
+                    Forgot your password?{" "}
+                    <button className="text-primary hover:underline" onClick={() => { setResetMode(true); setError(""); }}>
+                      Reset it here
+                    </button>
+                  </>
+                )}
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

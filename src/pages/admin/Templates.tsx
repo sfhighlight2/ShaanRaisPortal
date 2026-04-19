@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { edgeFetch } from "@/lib/edgeFetch";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { TaskType, PackageTemplate } from "@/lib/types";
@@ -375,19 +376,8 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
-  // ── Edge Function helper ──
-  const adminAction = async (payload: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("No active session.");
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (json.error) throw new Error(json.error);
-    return json;
-  };
+  // ── Edge Function helper — delegates to shared utility ──
+  const adminAction = (payload: Record<string, unknown>) => edgeFetch("create-user", payload);
 
   const deletePhase = async (id: string) => {
     if (!confirm("Delete phase? All associated tasks and deliverables will also be deleted.")) return;

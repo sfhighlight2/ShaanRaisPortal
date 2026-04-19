@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,22 +85,19 @@ const ClientDashboard: React.FC = () => {
       {/* Hero Status Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Package */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0, duration: 0.4 }}
-          className="p-5 rounded-lg bg-card border border-border">
+        <div className="animate-fade-in p-5 rounded-lg bg-card border border-border" style={{ animationDelay: "0ms", animationFillMode: "both" }}>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Package</p>
           <p className="text-sm font-medium text-foreground mt-1.5">{project?.projectName || "—"}</p>
-        </motion.div>
+        </div>
 
         {/* Current Phase */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07, duration: 0.4 }}
-          className="p-5 rounded-lg bg-card border border-border">
+        <div className="animate-fade-in p-5 rounded-lg bg-card border border-border" style={{ animationDelay: "70ms", animationFillMode: "both" }}>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Current Phase</p>
           <p className="text-sm font-medium text-foreground mt-1.5">{currentPhase?.name || "—"}</p>
-        </motion.div>
+        </div>
 
         {/* Status */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14, duration: 0.4 }}
-          className="p-5 rounded-lg bg-card border border-border">
+        <div className="animate-fade-in p-5 rounded-lg bg-card border border-border" style={{ animationDelay: "140ms", animationFillMode: "both" }}>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</p>
           <TooltipProvider>
             <Tooltip>
@@ -113,11 +109,10 @@ const ClientDashboard: React.FC = () => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </motion.div>
+        </div>
 
         {/* Business Consultant — clickable popover */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.21, duration: 0.4 }}
-          className="p-5 rounded-lg bg-card border border-border">
+        <div className="animate-fade-in p-5 rounded-lg bg-card border border-border" style={{ animationDelay: "210ms", animationFillMode: "both" }}>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Business Consultant</p>
           {accountManager ? (
             <Popover>
@@ -155,16 +150,12 @@ const ClientDashboard: React.FC = () => {
           ) : (
             <p className="text-sm font-medium text-foreground mt-1.5">—</p>
           )}
-        </motion.div>
+        </div>
       </div>
 
       {/* Next Step Card */}
       {nextTask && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
+        <div className="animate-fade-in" style={{ animationDelay: "300ms", animationFillMode: "both" }}>
           <Card className="bg-primary/[0.03] border-primary/20">
             <CardContent className="p-6 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -181,15 +172,11 @@ const ClientDashboard: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
 
       {/* Phase Journey Tracker — Full Width */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
-      >
+      <div className="animate-fade-in" style={{ animationDelay: "350ms", animationFillMode: "both" }}>
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-base font-medium">Your Journey</CardTitle>
@@ -234,7 +221,7 @@ const ClientDashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Two Column Layout */}
       <div className="grid md:grid-cols-2 gap-6">

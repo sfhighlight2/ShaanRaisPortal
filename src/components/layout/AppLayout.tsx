@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { Bell, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-  link?: string;
-}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -42,37 +33,9 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { user } = useAuth();
   const { isImpersonating } = useImpersonation();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // ── Shared notifications — one fetch, cached, consumed here and in AppSidebar ──
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
-
-  const loadNotifications = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setNotifications((data ?? []) as Notification[]);
-  };
-
-  useEffect(() => { loadNotifications(); }, [user]);
-
-  const markRead = async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    if (isSupabaseConfigured) {
-      await supabase.from("notifications").update({ read: true }).eq("id", id);
-    }
-  };
-
-  const markAllRead = async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    if (isSupabaseConfigured && user) {
-      await supabase.from("notifications").update({ read: true }).eq("user_id", user.id);
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <SidebarProvider>
@@ -93,7 +56,11 @@ export function AppLayout({ children }: AppLayoutProps) {
               {/* Notification Bell */}
               <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                  <button className="relative text-muted-foreground hover:text-foreground transition-colors" onClick={() => setOpen(true)}>
+                  <button
+                    className="relative text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setOpen(true)}
+                    aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+                  >
                     <Bell className="h-[18px] w-[18px]" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 h-4 min-w-4 text-[9px] bg-primary text-primary-foreground rounded-full flex items-center justify-center font-medium px-0.5">
@@ -106,7 +73,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                     <h3 className="text-sm font-semibold">Notifications</h3>
                     {unreadCount > 0 && (
-                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground" onClick={markAllRead}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                        onClick={() => markAllRead()}
+                      >
                         <Check className="h-3 w-3" /> Mark all read
                       </Button>
                     )}
@@ -115,7 +87,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     {notifications.length === 0 ? (
                       <div className="py-10 text-center text-sm text-muted-foreground">No notifications</div>
                     ) : (
-                      notifications.map(n => (
+                      notifications.map((n) => (
                         <button
                           key={n.id}
                           onClick={() => markRead(n.id)}

@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+
 import { ExternalLink, FolderOpen, FileText, Video, Table2, Palette, Link2, Globe, Instagram, Twitter, Linkedin, Youtube, Facebook, Hash } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -141,15 +141,13 @@ const ClientLinks: React.FC = () => {
                   {typeLinks.map((link, i) => {
                     const LinkIcon = linkTypeIcons[link.linkType];
                     return (
-                      <motion.a
+                      <a
                         key={link.id}
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.04 }}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                        className="animate-fade-in flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                        style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
                       >
                         <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${linkTypeColors[link.linkType]}`}>
                           <LinkIcon className="h-5 w-5" />
@@ -165,7 +163,7 @@ const ClientLinks: React.FC = () => {
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                           Open <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
-                      </motion.a>
+                      </a>
                     );
                   })}
                 </div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Building, Mail, Phone, ExternalLink, MoreHorizontal,
@@ -19,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
+import { edgeFetch } from "@/lib/edgeFetch";
 import { useToast } from "@/hooks/use-toast";
 import type { ClientStatus, PhaseStatus, PackageTemplate, LinkType } from "@/lib/types";
 
@@ -136,13 +136,22 @@ const AdminClientDetail: React.FC = () => {
     if (!clientId) return;
     setLoading(true);
     try {
-      // Client + manager
-      const { data: c } = await supabase
-        .from("clients")
-        .select("*, manager:profiles!account_manager_id(id, first_name, last_name)")
-        .eq("id", clientId)
-        .single();
+      // Fire ALL independent queries in parallel to avoid waterfall loading
+      const [clientRes, mgrsRes, tmplsRes, projectsRes, updatesRes, questionsRes, activityRes, docsRes, linksRes, notesRes] = await Promise.all([
+        supabase.from("clients").select("*, manager:profiles!account_manager_id(id, first_name, last_name)").eq("id", clientId).single(),
+        supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]),
+        supabase.from("package_templates").select("id, name").order("name"),
+        supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).limit(1),
+        supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
+        supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("activity_logs").select("id, event_label, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(10),
+        supabase.from("documents").select("*").eq("client_id", clientId).order("uploaded_at", { ascending: false }),
+        supabase.from("client_links").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("client_notes").select("*, author:profiles!created_by(first_name, last_name)").eq("client_id", clientId).order("created_at", { ascending: false }),
+      ]);
 
+      // --- Client ---
+      const c = clientRes.data;
       if (!c) { navigate("/admin/clients"); return; }
 
       const managerRaw = Array.isArray(c.manager) ? c.manager[0] : c.manager;
@@ -159,16 +168,12 @@ const AdminClientDetail: React.FC = () => {
         package_template_id: c.package_template_id ?? undefined,
       });
 
-      // Load Managers and Templates for edit
-      const { data: mgrs } = await supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]);
-      if (mgrs) setManagers(mgrs.map(m => ({ id: m.id, name: `${m.first_name} ${m.last_name}` })));
-      
-      const { data: tmpls } = await supabase.from("package_templates").select("id, name").order("name");
-      if (tmpls) setTemplates(tmpls as PackageTemplate[]);
+      // --- Managers & Templates ---
+      if (mgrsRes.data) setManagers(mgrsRes.data.map(m => ({ id: m.id, name: `${m.first_name} ${m.last_name}` })));
+      if (tmplsRes.data) setTemplates(tmplsRes.data as PackageTemplate[]);
 
-      // Project → phases
-      const { data: projects } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).limit(1);
-      const projectId = projects?.[0]?.id;
+      // --- Project → Phases → Tasks + Deliverables (sequential dependency) ---
+      const projectId = projectsRes.data?.[0]?.id;
 
       if (projectId) {
         const { data: phasesData } = await supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order");
@@ -179,12 +184,12 @@ const AdminClientDetail: React.FC = () => {
 
         const phaseIds = formattedPhases.map(p => p.id);
         if (phaseIds.length > 0) {
-          const [tasksRes, deliverablesRes] = await Promise.all([
+          const [tasksRes2, deliverablesRes] = await Promise.all([
             supabase.from("tasks").select("*").in("phase_id", phaseIds).order("sort_order"),
             supabase.from("deliverables").select("*").in("phase_id", phaseIds),
           ]);
 
-          setTasks((tasksRes.data || []).map(t => ({
+          setTasks((tasksRes2.data || []).map(t => ({
             id: t.id, title: t.title, taskType: t.task_type, status: t.status,
             phaseId: t.phase_id, phaseName: formattedPhases.find(p => p.id === t.phase_id)?.name,
           })));
@@ -193,18 +198,18 @@ const AdminClientDetail: React.FC = () => {
             id: d.id, title: d.title, phaseId: d.phase_id, visibleToClient: d.visible_to_client,
             phaseName: formattedPhases.find(p => p.id === d.phase_id)?.name,
           })));
+        } else {
+          setPhases(formattedPhases);
+          setTasks([]);
+          setDeliverables([]);
         }
+      } else {
+        setPhases([]);
+        setTasks([]);
+        setDeliverables([]);
       }
 
-      // Updates, Questions, Activity, Documents, Links
-      const [updatesRes, questionsRes, activityRes, docsRes, linksRes] = await Promise.all([
-        supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
-        supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
-        supabase.from("activity_logs").select("id, event_label, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(10),
-        supabase.from("documents").select("*").eq("client_id", clientId).order("uploaded_at", { ascending: false }),
-        supabase.from("client_links").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
-      ]);
-
+      // --- Updates, Questions, Activity, Documents, Links (already resolved) ---
       setUpdates((updatesRes.data || []).map(u => ({ id: u.id, title: u.title, createdAt: u.created_at })));
       setQuestions((questionsRes.data || []).map(q => ({
         id: q.id, subject: q.subject, message: q.message, response: q.response ?? undefined, status: q.status,
@@ -219,14 +224,8 @@ const AdminClientDetail: React.FC = () => {
         description: l.description ?? undefined, visibleToClient: l.visible_to_client, createdAt: l.created_at,
       })));
 
-      // Notes
-      const { data: notesData } = await supabase
-        .from("client_notes")
-        .select("*, author:profiles!created_by(first_name, last_name)")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false });
-
-      setNotes((notesData || []).map(n => {
+      // --- Notes (already resolved) ---
+      setNotes((notesRes.data || []).map(n => {
         const author = Array.isArray(n.author) ? n.author[0] : n.author;
         return {
           id: n.id, content: n.content, createdBy: n.created_by,
@@ -247,47 +246,44 @@ const AdminClientDetail: React.FC = () => {
   const handleEditClient = async () => {
     if (!editForm || !clientId || !client) return;
     setSavingClient(true);
-    const packageTemplateId = editForm.packageTemplateId === "unassigned" ? null : editForm.packageTemplateId;
-    
-    const { error } = await supabase.from("clients").update({
-      company_name: editForm.companyName,
-      primary_contact_name: editForm.contactName,
-      primary_contact_email: editForm.email || null,
-      phone: editForm.phone || null,
-      status: editForm.status,
-      google_drive_url: editForm.driveUrl || null,
-      airtable_url: editForm.airtableUrl || null,
-      account_manager_id: editForm.managerId === "unassigned" ? null : editForm.managerId,
-      package_template_id: packageTemplateId,
-    }).eq("id", clientId);
-    
-    if (error) {
-      console.error(error);
-      toast({ title: "Error Saving", description: error.message, variant: "destructive" });
-      setSavingClient(false);
-      return;
-    }
-
-    if (packageTemplateId && packageTemplateId !== client.package_template_id) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ client_id: clientId, package_template_id: packageTemplateId })
-        });
-        toast({ title: "Package Assigned", description: "Template tasks have been successfully applied." });
-      } catch (pkgErr) {
-        console.error("Failed to assign package:", pkgErr);
-        toast({ title: "Template Warning", description: "Updated client but applying the new template failed.", variant: "destructive" });
+    try {
+      const packageTemplateId = editForm.packageTemplateId === "unassigned" ? null : editForm.packageTemplateId;
+      
+      const { error } = await supabase.from("clients").update({
+        company_name: editForm.companyName,
+        primary_contact_name: editForm.contactName,
+        primary_contact_email: editForm.email || null,
+        phone: editForm.phone || null,
+        status: editForm.status,
+        google_drive_url: editForm.driveUrl || null,
+        airtable_url: editForm.airtableUrl || null,
+        account_manager_id: editForm.managerId === "unassigned" ? null : editForm.managerId,
+        package_template_id: packageTemplateId,
+      }).eq("id", clientId);
+      
+      if (error) {
+        console.error(error);
+        toast({ title: "Error Saving", description: error.message, variant: "destructive" });
+        return;
       }
-    } else {
-      toast({ title: "Saved", description: "Client details updated." });
-    }
 
-    setSavingClient(false);
-    setShowEditDialog(false);
-    loadAll();
+      if (packageTemplateId && packageTemplateId !== client.package_template_id) {
+        try {
+          await edgeFetch("assign-package", { client_id: clientId, package_template_id: packageTemplateId });
+          toast({ title: "Package Assigned", description: "Template tasks have been successfully applied." });
+        } catch (pkgErr: any) {
+          console.error("Failed to assign package:", pkgErr);
+          toast({ title: "Template Warning", description: pkgErr.message || "Updated client but applying the new template failed.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Saved", description: "Client details updated." });
+      }
+
+      setShowEditDialog(false);
+      loadAll();
+    } finally {
+      setSavingClient(false);
+    }
   };
 
   const openEdit = () => {
@@ -320,31 +316,33 @@ const AdminClientDetail: React.FC = () => {
   const saveTask = async () => {
     if (!taskForm.title || !taskForm.phaseId) return;
     setSavingTask(true);
-    let error;
-    
-    // Auto-calculate sort_order for new tasks based on current max
-    const phaseTasks = tasks.filter(t => t.phaseId === taskForm.phaseId);
-    const sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
+    try {
+      // Auto-calculate sort_order for new tasks based on current max
+      const phaseTasks = tasks.filter(t => t.phaseId === taskForm.phaseId);
+      const sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
 
-    if (editTask) {
-      const { error: err } = await supabase.from("tasks").update({
-        title: taskForm.title, task_type: taskForm.taskType,
-        status: taskForm.status, phase_id: taskForm.phaseId
-      }).eq("id", editTask.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from("tasks").insert({
-        title: taskForm.title, task_type: taskForm.taskType,
-        status: taskForm.status, phase_id: taskForm.phaseId,
-        sort_order: sortOrder
-      });
-      error = err;
+      let error;
+      if (editTask) {
+        const { error: err } = await supabase.from("tasks").update({
+          title: taskForm.title, task_type: taskForm.taskType,
+          status: taskForm.status, phase_id: taskForm.phaseId
+        }).eq("id", editTask.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from("tasks").insert({
+          title: taskForm.title, task_type: taskForm.taskType,
+          status: taskForm.status, phase_id: taskForm.phaseId,
+          sort_order: sortOrder
+        });
+        error = err;
+      }
+      if (!error) {
+        setShowTaskDialog(false);
+        loadAll();
+      } else console.error(error);
+    } finally {
+      setSavingTask(false);
     }
-    setSavingTask(false);
-    if (!error) {
-      setShowTaskDialog(false);
-      loadAll();
-    } else console.error(error);
   };
 
   const deleteTask = async (id: string) => {
@@ -367,25 +365,27 @@ const AdminClientDetail: React.FC = () => {
   const saveDeliv = async () => {
     if (!delivForm.title || !delivForm.phaseId) return;
     setSavingDeliv(true);
-    let error;
-
-    if (editDeliv) {
-      const { error: err } = await supabase.from("deliverables").update({
-        title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
-        // Add description to update if column exists, skipping for now
-      }).eq("id", editDeliv.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from("deliverables").insert({
-        title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
-      });
-      error = err;
+    try {
+      let error;
+      if (editDeliv) {
+        const { error: err } = await supabase.from("deliverables").update({
+          title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
+          // Add description to update if column exists, skipping for now
+        }).eq("id", editDeliv.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from("deliverables").insert({
+          title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
+        });
+        error = err;
+      }
+      if (!error) {
+        setShowDelivDialog(false);
+        loadAll();
+      } else console.error(error);
+    } finally {
+      setSavingDeliv(false);
     }
-    setSavingDeliv(false);
-    if (!error) {
-      setShowDelivDialog(false);
-      loadAll();
-    } else console.error(error);
   };
 
   const deleteDeliv = async (id: string) => {
@@ -413,80 +413,81 @@ const AdminClientDetail: React.FC = () => {
   const saveDoc = async () => {
     if (!docForm.title || !clientId) return;
     setSavingDoc(true);
-    let fileUrl = docForm.fileUrl || null;
+    try {
+      let fileUrl = docForm.fileUrl || null;
 
-    // Handle file upload to Supabase Storage
-    if (docUploadMode === "upload" && selectedFile) {
-      try {
-        setUploadProgress(10);
-        const fileExt = selectedFile.name.split(".").pop();
-        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const filePath = `${clientId}/${Date.now()}_${safeName}`;
+      // Handle file upload to Supabase Storage
+      if (docUploadMode === "upload" && selectedFile) {
+        try {
+          setUploadProgress(10);
+          const fileExt = selectedFile.name.split(".").pop();
+          const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const filePath = `${clientId}/${Date.now()}_${safeName}`;
 
-        setUploadProgress(30);
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("client-documents")
-          .upload(filePath, selectedFile, {
-            cacheControl: "3600",
-            upsert: false,
-          });
+          setUploadProgress(30);
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("client-documents")
+            .upload(filePath, selectedFile, {
+              cacheControl: "3600",
+              upsert: false,
+            });
 
-        if (uploadError) {
-          console.error("Upload error:", uploadError);
-          toast({ title: "Upload Failed", description: uploadError.message, variant: "destructive" });
-          setSavingDoc(false);
+          if (uploadError) {
+            console.error("Upload error:", uploadError);
+            toast({ title: "Upload Failed", description: uploadError.message, variant: "destructive" });
+            setUploadProgress(0);
+            return;
+          }
+
+          setUploadProgress(80);
+          const { data: urlData } = supabase.storage
+            .from("client-documents")
+            .getPublicUrl(uploadData.path);
+
+          fileUrl = urlData.publicUrl;
+          setUploadProgress(100);
+        } catch (err) {
+          console.error("File upload failed:", err);
+          toast({ title: "Upload Failed", description: "Could not upload file. Please try again.", variant: "destructive" });
           setUploadProgress(0);
           return;
         }
-
-        setUploadProgress(80);
-        const { data: urlData } = supabase.storage
-          .from("client-documents")
-          .getPublicUrl(uploadData.path);
-
-        fileUrl = urlData.publicUrl;
-        setUploadProgress(100);
-      } catch (err) {
-        console.error("File upload failed:", err);
-        toast({ title: "Upload Failed", description: "Could not upload file. Please try again.", variant: "destructive" });
-        setSavingDoc(false);
-        setUploadProgress(0);
-        return;
       }
-    }
 
-    let error;
-    if (editDoc) {
-      // If editing and replacing with a new uploaded file, remove the old file from storage
-      if (selectedFile && editDoc.fileUrl?.includes("client-documents")) {
-        try {
-          const oldPath = editDoc.fileUrl.split("/client-documents/").pop();
-          if (oldPath) {
-            await supabase.storage.from("client-documents").remove([decodeURIComponent(oldPath)]);
-          }
-        } catch { /* old file cleanup is best-effort */ }
+      let error;
+      if (editDoc) {
+        // If editing and replacing with a new uploaded file, remove the old file from storage
+        if (selectedFile && editDoc.fileUrl?.includes("client-documents")) {
+          try {
+            const oldPath = editDoc.fileUrl.split("/client-documents/").pop();
+            if (oldPath) {
+              await supabase.storage.from("client-documents").remove([decodeURIComponent(oldPath)]);
+            }
+          } catch { /* old file cleanup is best-effort */ }
+        }
+        const { error: err } = await supabase.from("documents").update({
+          title: docForm.title, document_type: docForm.documentType,
+          file_url: fileUrl, visible_to_client: docForm.visibleToClient,
+        }).eq("id", editDoc.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from("documents").insert({
+          client_id: clientId, title: docForm.title, document_type: docForm.documentType,
+          file_url: fileUrl, visible_to_client: docForm.visibleToClient,
+        });
+        error = err;
       }
-      const { error: err } = await supabase.from("documents").update({
-        title: docForm.title, document_type: docForm.documentType,
-        file_url: fileUrl, visible_to_client: docForm.visibleToClient,
-      }).eq("id", editDoc.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from("documents").insert({
-        client_id: clientId, title: docForm.title, document_type: docForm.documentType,
-        file_url: fileUrl, visible_to_client: docForm.visibleToClient,
-      });
-      error = err;
-    }
-    setSavingDoc(false);
-    setUploadProgress(0);
-    if (!error) {
-      setShowDocDialog(false);
-      toast({ title: editDoc ? "Document Updated" : "Document Added" });
-      loadAll();
-    } else {
-      console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setUploadProgress(0);
+      if (!error) {
+        setShowDocDialog(false);
+        toast({ title: editDoc ? "Document Updated" : "Document Added" });
+        loadAll();
+      } else {
+        console.error(error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } finally {
+      setSavingDoc(false);
     }
   };
 
@@ -521,29 +522,32 @@ const AdminClientDetail: React.FC = () => {
   const saveLink = async () => {
     if (!linkForm.title || !linkForm.url || !clientId) return;
     setSavingLink(true);
-    let error;
-    if (editLink) {
-      const { error: err } = await supabase.from("client_links").update({
-        title: linkForm.title, url: linkForm.url, link_type: linkForm.linkType,
-        description: linkForm.description || null, visible_to_client: linkForm.visibleToClient,
-      }).eq("id", editLink.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from("client_links").insert({
-        client_id: clientId, title: linkForm.title, url: linkForm.url,
-        link_type: linkForm.linkType, description: linkForm.description || null,
-        visible_to_client: linkForm.visibleToClient,
-      });
-      error = err;
-    }
-    setSavingLink(false);
-    if (!error) {
-      setShowLinkDialog(false);
-      toast({ title: editLink ? "Link Updated" : "Link Added" });
-      loadAll();
-    } else {
-      console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      let error;
+      if (editLink) {
+        const { error: err } = await supabase.from("client_links").update({
+          title: linkForm.title, url: linkForm.url, link_type: linkForm.linkType,
+          description: linkForm.description || null, visible_to_client: linkForm.visibleToClient,
+        }).eq("id", editLink.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from("client_links").insert({
+          client_id: clientId, title: linkForm.title, url: linkForm.url,
+          link_type: linkForm.linkType, description: linkForm.description || null,
+          visible_to_client: linkForm.visibleToClient,
+        });
+        error = err;
+      }
+      if (!error) {
+        setShowLinkDialog(false);
+        toast({ title: editLink ? "Link Updated" : "Link Added" });
+        loadAll();
+      } else {
+        console.error(error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } finally {
+      setSavingLink(false);
     }
   };
 
@@ -557,41 +561,47 @@ const AdminClientDetail: React.FC = () => {
   const addNote = async () => {
     if (!newNote.trim() || !clientId) return;
     setSavingNote(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const { error } = await supabase.from("client_notes").insert({
-      client_id: clientId,
-      content: newNote.trim(),
-      created_by: session?.user?.id || null,
-      visible_to_client: newNoteVisible,
-    });
-    setSavingNote(false);
-    if (!error) {
-      setNewNote("");
-      setNewNoteVisible(false);
-      toast({ title: "Note Added" });
-      loadAll();
-    } else {
-      console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.from("client_notes").insert({
+        client_id: clientId,
+        content: newNote.trim(),
+        created_by: session?.user?.id || null,
+        visible_to_client: newNoteVisible,
+      });
+      if (!error) {
+        setNewNote("");
+        setNewNoteVisible(false);
+        toast({ title: "Note Added" });
+        loadAll();
+      } else {
+        console.error(error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } finally {
+      setSavingNote(false);
     }
   };
 
   const updateNote = async (id: string) => {
     if (!editNoteContent.trim()) return;
     setSavingNote(true);
-    const { error } = await supabase.from("client_notes").update({
-      content: editNoteContent.trim(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", id);
-    setSavingNote(false);
-    if (!error) {
-      setEditNoteId(null);
-      setEditNoteContent("");
-      toast({ title: "Note Updated" });
-      loadAll();
-    } else {
-      console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      const { error } = await supabase.from("client_notes").update({
+        content: editNoteContent.trim(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (!error) {
+        setEditNoteId(null);
+        setEditNoteContent("");
+        toast({ title: "Note Updated" });
+        loadAll();
+      } else {
+        console.error(error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } finally {
+      setSavingNote(false);
     }
   };
 

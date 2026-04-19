@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { Search, Filter, MoreHorizontal, Users, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,41 +45,45 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        /**
+         * Performance fix: replaced a 3-step waterfall
+         *   (clients → projects → phases)
+         * with parallel fetches joined by a single Supabase nested select.
+         * The phases name is pulled via the projects join in one round-trip.
+         */
         const { data } = await supabase
           .from("clients")
-          .select("id, company_name, primary_contact_name, status, package_template_id, manager:profiles!account_manager_id(first_name, last_name), packageInfo:package_templates!package_template_id(name)")
+          .select(
+            "id, company_name, primary_contact_name, status, " +
+            "manager:profiles!account_manager_id(first_name, last_name), " +
+            "packageInfo:package_templates!package_template_id(name), " +
+            // Nested join: main project → current phase name
+            "projects!client_id(is_main_project, current_phase:phases!current_phase_id(name))"
+          )
           .order("company_name");
 
-        // Fetch current phases for all clients via their main projects
-        const clientIds = (data ?? []).map((r: any) => r.id);
-        let phaseMap: Record<string, string> = {};
-        if (clientIds.length > 0) {
-          const { data: projects } = await supabase
-            .from("projects")
-            .select("client_id, current_phase_id")
-            .in("client_id", clientIds)
-            .eq("is_main_project", true);
+        const rows: ClientRow[] = (data ?? []).map((r: any) => {
+          // Handle Supabase returning either an object or a single-element array
+          const manager = Array.isArray(r.manager) ? r.manager[0] : r.manager;
+          const packageInfo = Array.isArray(r.packageInfo) ? r.packageInfo[0] : r.packageInfo;
+          // Find the main project's current phase
+          const mainProject = (r.projects ?? []).find((p: any) => p.is_main_project);
+          const currentPhaseData = mainProject?.current_phase;
+          const phaseName = Array.isArray(currentPhaseData)
+            ? currentPhaseData[0]?.name
+            : currentPhaseData?.name;
 
-          const phaseIds = (projects ?? []).map((p: any) => p.current_phase_id).filter(Boolean);
-          if (phaseIds.length > 0) {
-            const { data: phases } = await supabase
-              .from("phases")
-              .select("id, name")
-              .in("id", phaseIds);
-            const phaseNameMap: Record<string, string> = {};
-            (phases ?? []).forEach((ph: any) => { phaseNameMap[ph.id] = ph.name; });
-            (projects ?? []).forEach((p: any) => {
-              if (p.current_phase_id) phaseMap[p.client_id] = phaseNameMap[p.current_phase_id] ?? "—";
-            });
-          }
-        }
+          return {
+            id: r.id,
+            company_name: r.company_name,
+            primary_contact_name: r.primary_contact_name,
+            status: r.status as ClientStatus,
+            manager: manager ?? null,
+            package: packageInfo?.name ?? undefined,
+            currentPhase: phaseName ?? undefined,
+          };
+        });
 
-        const rows: ClientRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
-          ...(r as Omit<ClientRow, "manager">),
-          manager: Array.isArray(r.manager) ? (r.manager[0] ?? null) : (r.manager as ClientRow["manager"]),
-          package: (Array.isArray(r.packageInfo) ? r.packageInfo[0] : (r.packageInfo as any))?.name ?? undefined,
-          currentPhase: phaseMap[(r as any).id] ?? undefined,
-        }));
         setClients(rows);
         setStats({
           total: rows.length,
@@ -116,10 +119,14 @@ const AdminDashboard: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-1">Manage all client accounts from one place.</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards — CSS stagger replaces framer-motion */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+          <div
+            key={s.label}
+            className="animate-fade-in"
+            style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}
+          >
             <Card>
               <CardContent className="p-4">
                 <TooltipProvider>
@@ -140,7 +147,7 @@ const AdminDashboard: React.FC = () => {
                 </TooltipProvider>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         ))}
       </div>
 

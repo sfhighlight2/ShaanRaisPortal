@@ -8,13 +8,13 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase";
 import logoImg from "@/assets/shaan-rais-logo.png";
 
 const clientNav = [
@@ -53,6 +53,8 @@ const managerNav = [
 export function AppSidebar() {
   const { user, logout, switchRole } = useAuth();
   const { isImpersonating, impersonatedClientId } = useImpersonation();
+  // ── Reads from the shared cache — zero additional DB calls ────────────
+  const { unreadCount } = useNotifications();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
@@ -75,27 +77,31 @@ export function AppSidebar() {
     : isAdmin
       ? (user?.role === "admin" ? adminNav : managerNav)
       : clientNav;
-  const [unreadCount, setUnreadCount] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!user?.id) return;
-    supabase
-      .from("notifications")
-      .select("id", { count: "exact" })
-      .eq("user_id", user.id)
-      .eq("read", false)
-      .then(({ count }) => setUnreadCount(count ?? 0));
-  }, [user?.id]);
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarContent className="py-4">
-        {/* Logo */}
+        {/* Logo — explicit width/height prevents layout shift (CLS) */}
         <div className="px-4 mb-6 flex justify-center">
           {!collapsed ? (
-            <img src={logoImg} alt="Shaan Rais Media" className="h-24 w-auto" />
+            <img
+              src={logoImg}
+              alt="Shaan Rais Media"
+              className="h-24 w-auto"
+              width={192}
+              height={96}
+              fetchPriority="high"
+              decoding="async"
+            />
           ) : (
-            <img src={logoImg} alt="Shaan Rais Media" className="h-10 w-10 object-contain" />
+            <img
+              src={logoImg}
+              alt="Shaan Rais Media"
+              className="h-10 w-10 object-contain"
+              width={40}
+              height={40}
+              decoding="async"
+            />
           )}
         </div>
 

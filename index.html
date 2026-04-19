@@ -3,21 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
     <title>Shaan Rais</title>
     <meta name="description" content="Client Dashboard">
 
-    <!-- TODO: Update og:title to match your application name -->
-    
-    
     <meta property="og:type" content="website" />
-
-    <meta name="twitter:card" content="summary_large_image" />
     <meta property="og:title" content="Shaan Rais">
-  <meta name="twitter:title" content="Shaan Rais">
-  <meta property="og:description" content="Client Dashboard">
-  <meta name="twitter:description" content="Client Dashboard">
-</head>
+    <meta property="og:description" content="Client Dashboard">
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Shaan Rais">
+    <meta name="twitter:description" content="Client Dashboard">
+
+    <!-- ── Preconnect to external origins so DNS + TCP are resolved early ── -->
+    <!-- Supabase API (first network call on every page) -->
+    <link rel="preconnect" href="https://krnmhxbinsdcfvlvjinp.supabase.co" />
+    <link rel="dns-prefetch" href="https://krnmhxbinsdcfvlvjinp.supabase.co" />
+
+    <!-- Google Fonts infrastructure -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Fontshare (General Sans) -->
+    <link rel="preconnect" href="https://api.fontshare.com" />
+
+    <!-- ── Non-blocking font CSS ─────────────────────────────────────────── -->
+    <!-- Inter — loaded asynchronously; onload swaps rel from preload → stylesheet -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      />
+    </noscript>
+
+    <!-- General Sans (Fontshare) — non-blocking -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://api.fontshare.com/v2/css?f[]=general-sans@200,300,400,500,600,700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://api.fontshare.com/v2/css?f[]=general-sans@200,300,400,500,600,700&display=swap"
+      />
+    </noscript>
+  </head>
 
   <body>
     <div id="root"></div>

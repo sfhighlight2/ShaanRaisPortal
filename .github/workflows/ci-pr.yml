@@ -1,0 +1,82 @@
+##
+# CI: PR pipeline — runs on every push and PR.
+# Goal: fast feedback (<5 min).  Runs linting, all unit/integration tests, and smoke E2E.
+##
+name: PR — Lint, Unit Tests & Smoke E2E
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-unit:
+    name: "Lint + Unit / Integration Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Unit / Integration tests (Vitest)
+        run: npm run test:unit
+        env:
+          # Vitest runs in jsdom; no real Supabase needed — MSW intercepts everything
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_ANON_KEY: dummy-anon-key
+
+  smoke-e2e:
+    name: "Smoke E2E Tests (Chromium)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only run E2E after unit tests pass
+    needs: lint-and-unit
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Run smoke E2E tests
+        run: npm run test:e2e:smoke
+        env:
+          E2E_BASE_URL: http://localhost:4173
+          CI: true
+
+      - name: Upload Playwright report on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-smoke
+          path: playwright-report/
+          retention-days: 7

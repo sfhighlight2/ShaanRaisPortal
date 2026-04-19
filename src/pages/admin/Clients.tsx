@@ -23,6 +23,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { edgeFetch } from "@/lib/edgeFetch";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { ClientStatus } from "@/lib/types";
@@ -264,46 +265,43 @@ const AdminClients: React.FC = () => {
     }
     setSubmitting(true);
     setError("");
-    const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
-    
-    const { data: newClient, error: err } = await supabase.from("clients").insert({
-      company_name: form.company_name,
-      primary_contact_name: form.primary_contact_name,
-      primary_contact_email: form.primary_contact_email || null,
-      phone: form.phone || null,
-      google_drive_url: form.google_drive_url || null,
-      airtable_url: form.airtable_url || null,
-      status: form.status,
-      account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
-      package_template_id: packageTemplateId,
-    }).select("id").single();
-    
-    if (err) {
-      setError(err.message);
-      setSubmitting(false);
-      return;
-    }
-
-    if (packageTemplateId && newClient?.id) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ client_id: newClient.id, package_template_id: packageTemplateId })
-        });
-        toast({ title: "Client Created", description: "Package template has been assigned." });
-      } catch (pkgErr) {
-        console.error("Failed to assign package details:", pkgErr);
-        toast({ title: "Template Warning", description: "Client was created but applying the template failed.", variant: "destructive" });
+    try {
+      const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
+      
+      const { data: newClient, error: err } = await supabase.from("clients").insert({
+        company_name: form.company_name,
+        primary_contact_name: form.primary_contact_name,
+        primary_contact_email: form.primary_contact_email || null,
+        phone: form.phone || null,
+        google_drive_url: form.google_drive_url || null,
+        airtable_url: form.airtable_url || null,
+        status: form.status,
+        account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
+        package_template_id: packageTemplateId,
+      }).select("id").single();
+      
+      if (err) {
+        setError(err.message);
+        return;
       }
-    } else {
-      toast({ title: "Client Created" });
-    }
 
-    setSubmitting(false);
-    setShowAddDialog(false);
-    loadClients();
+      if (packageTemplateId && newClient?.id) {
+        try {
+          await edgeFetch("assign-package", { client_id: newClient.id, package_template_id: packageTemplateId });
+          toast({ title: "Client Created", description: "Package template has been assigned." });
+        } catch (pkgErr: any) {
+          console.error("Failed to assign package details:", pkgErr);
+          toast({ title: "Template Warning", description: pkgErr.message || "Client was created but applying the template failed.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Client Created" });
+      }
+
+      setShowAddDialog(false);
+      loadClients();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleUpdate = async () => {
@@ -314,46 +312,43 @@ const AdminClients: React.FC = () => {
     }
     setSubmitting(true);
     setError("");
-    const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
+    try {
+      const packageTemplateId = form.package_template_id === UNASSIGNED ? null : (form.package_template_id || null);
 
-    const { error: err } = await supabase.from("clients").update({
-      company_name: form.company_name,
-      primary_contact_name: form.primary_contact_name,
-      primary_contact_email: form.primary_contact_email || null,
-      phone: form.phone || null,
-      google_drive_url: form.google_drive_url || null,
-      airtable_url: form.airtable_url || null,
-      status: form.status,
-      account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
-      package_template_id: packageTemplateId,
-    }).eq("id", editClient.id);
-    
-    if (err) {
-      setError(err.message);
-      setSubmitting(false);
-      return;
-    }
-
-    if (packageTemplateId && packageTemplateId !== (editClient as any).package_template_id) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-package`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ client_id: editClient.id, package_template_id: packageTemplateId })
-        });
-        toast({ title: "Package Assigned", description: "Template tasks have been fully applied." });
-      } catch (pkgErr) {
-        console.error("Failed to assign package details:", pkgErr);
-        toast({ title: "Template Warning", description: "Updated client but applying the new template failed.", variant: "destructive" });
+      const { error: err } = await supabase.from("clients").update({
+        company_name: form.company_name,
+        primary_contact_name: form.primary_contact_name,
+        primary_contact_email: form.primary_contact_email || null,
+        phone: form.phone || null,
+        google_drive_url: form.google_drive_url || null,
+        airtable_url: form.airtable_url || null,
+        status: form.status,
+        account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
+        package_template_id: packageTemplateId,
+      }).eq("id", editClient.id);
+      
+      if (err) {
+        setError(err.message);
+        return;
       }
-    } else {
-      toast({ title: "Client Updated" });
-    }
 
-    setSubmitting(false);
-    setEditClient(null);
-    loadClients();
+      if (packageTemplateId && packageTemplateId !== (editClient as any).package_template_id) {
+        try {
+          await edgeFetch("assign-package", { client_id: editClient.id, package_template_id: packageTemplateId });
+          toast({ title: "Package Assigned", description: "Template tasks have been fully applied." });
+        } catch (pkgErr: any) {
+          console.error("Failed to assign package details:", pkgErr);
+          toast({ title: "Template Warning", description: pkgErr.message || "Updated client but applying the new template failed.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Client Updated" });
+      }
+
+      setEditClient(null);
+      loadClients();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleArchive = async (c: ClientRow) => {

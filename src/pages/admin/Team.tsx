@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { edgeFetch } from "@/lib/edgeFetch";
 import type { UserRole } from "@/lib/types";
 
 const roleColors: Record<UserRole, string> = {
@@ -79,21 +80,13 @@ const AdminTeam: React.FC = () => {
     setSubmitting(true);
     setError("");
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("No active session. Please sign in again.");
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          role: form.role,
-        }),
+      await edgeFetch("create-user", {
+        email: form.email,
+        password: form.password,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        role: form.role,
       });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
       setShowAddDialog(false);
       loadMembers();
     } catch (err: any) {
@@ -108,21 +101,13 @@ const AdminTeam: React.FC = () => {
     setSubmitting(true);
     setError("");
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("No active session. Please sign in again.");
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          action: "update",
-          user_id: editMember.id,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          role: form.role,
-        }),
+      await edgeFetch("create-user", {
+        action: "update",
+        user_id: editMember.id,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        role: form.role,
       });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
       setEditMember(null);
       loadMembers();
     } catch (err: any) {
@@ -142,24 +127,14 @@ const AdminTeam: React.FC = () => {
   const handleDelete = async () => {
     if (!deleteMember) return;
     setDeleteError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      setDeleteError("No active session. Please sign out and sign in again.");
-      return;
+    try {
+      await edgeFetch("create-user", { action: "delete", user_id: deleteMember.id });
+      setDeleteMember(null);
+      setDeleteError("");
+      loadMembers();
+    } catch (err: any) {
+      setDeleteError(err?.message || "Failed to delete team member.");
     }
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ action: "delete", user_id: deleteMember.id }),
-    });
-    const json = await res.json();
-    if (json.error) {
-      setDeleteError(json.error);
-      return;
-    }
-    setDeleteMember(null);
-    setDeleteError("");
-    loadMembers();
   };
 
   const internalMembers = members.filter(u => u.role !== "client");

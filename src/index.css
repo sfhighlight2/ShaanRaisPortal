@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=general-sans@200,300,400,500,600,700&display=swap');
+/* Fonts are loaded non-blocking via <link rel="preload"> in index.html.
+   Removing @import here eliminates the render-blocking CSS round-trips
+   to Google Fonts and Fontshare that delayed FCP by 300–600 ms. */
 
 /* Custom Font Faces — Replace src URLs with your hosted font files */
 @font-face {
