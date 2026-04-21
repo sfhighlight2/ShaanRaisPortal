@@ -101,34 +101,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       // Skip the synthetic INITIAL_SESSION event — init() handles that.
       if (event === "INITIAL_SESSION") return;
+      // Skip SIGNED_IN — the login() function handles profile fetch inline
+      // for faster login-to-dashboard transition.
+      if (event === "SIGNED_IN") return;
       // Also skip if init() hasn't completed yet; it will set the user itself.
-      if (!initDone && event === "SIGNED_IN") return;
+      if (!initDone) return;
 
       if (session?.user) {
-        let profile = await fetchProfile(session.user.id);
-        if (!profile) {
-          const { data } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", session.user.email)
-            .single();
-          if (data) {
-            profile = {
-              id: data.id,
-              firstName: data.first_name,
-              lastName: data.last_name,
-              email: data.email,
-              role: data.role as UserRole,
-              profilePhoto: data.profile_photo ?? undefined,
-              status: data.status,
-              createdAt: data.created_at,
-            };
-          }
-        }
+        const profile = await fetchProfile(session.user.id);
         setUser(profile);
-        if (event === "SIGNED_IN" && profile?.role === "client") {
-          setIsFirstLogin(true);
-        }
       } else {
         setUser(null);
         setIsFirstLogin(false);
@@ -143,13 +124,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Login failed: Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
       return false;
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.error("Login error:", error.message);
       return false;
     }
+    // Fetch profile immediately instead of waiting for onAuthStateChange.
+    // This eliminates an extra async round-trip and makes login feel instant.
+    if (data.session?.user) {
+      const profile = await fetchProfile(data.session.user.id);
+      if (profile) {
+        setUser(profile);
+        if (profile.role === "client") setIsFirstLogin(true);
+      }
+    }
     return true;
-  }, []);
+  }, [fetchProfile]);
 
   const logout = useCallback(async () => {
     if (isSupabaseConfigured) {

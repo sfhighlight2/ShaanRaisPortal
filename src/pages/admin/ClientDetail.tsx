@@ -132,9 +132,11 @@ const AdminClientDetail: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (options?: { silent?: boolean }) => {
     if (!clientId) return;
-    setLoading(true);
+    // silent = true: background refresh after saves — keep existing UI visible
+    // silent = false/undefined: initial page load — show loading spinner
+    if (!options?.silent) setLoading(true);
     try {
       // Fire ALL independent queries in parallel to avoid waterfall loading
       const [clientRes, mgrsRes, tmplsRes, projectsRes, updatesRes, questionsRes, activityRes, docsRes, linksRes, notesRes] = await Promise.all([
@@ -237,7 +239,7 @@ const AdminClientDetail: React.FC = () => {
     } catch (err) {
       console.error("ClientDetail load error:", err);
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }, [clientId, navigate]);
 
@@ -280,7 +282,7 @@ const AdminClientDetail: React.FC = () => {
       }
 
       setShowEditDialog(false);
-      loadAll();
+      loadAll({ silent: true });
     } finally {
       setSavingClient(false);
     }
@@ -338,7 +340,7 @@ const AdminClientDetail: React.FC = () => {
       }
       if (!error) {
         setShowTaskDialog(false);
-        loadAll();
+        loadAll({ silent: true });
       } else console.error(error);
     } finally {
       setSavingTask(false);
@@ -348,7 +350,7 @@ const AdminClientDetail: React.FC = () => {
   const deleteTask = async (id: string) => {
     if (!confirm("Delete this task?")) return;
     const { error } = await supabase.from("tasks").delete().eq("id", id);
-    if (!error) loadAll();
+    if (!error) loadAll({ silent: true });
   };
 
   const openDelivDialog = (d?: Deliverable) => {
@@ -381,7 +383,7 @@ const AdminClientDetail: React.FC = () => {
       }
       if (!error) {
         setShowDelivDialog(false);
-        loadAll();
+        loadAll({ silent: true });
       } else console.error(error);
     } finally {
       setSavingDeliv(false);
@@ -391,7 +393,7 @@ const AdminClientDetail: React.FC = () => {
   const deleteDeliv = async (id: string) => {
     if (!confirm("Delete this deliverable?")) return;
     const { error } = await supabase.from("deliverables").delete().eq("id", id);
-    if (!error) loadAll();
+    if (!error) loadAll({ silent: true });
   };
 
   // Document CRUD
@@ -481,7 +483,7 @@ const AdminClientDetail: React.FC = () => {
       if (!error) {
         setShowDocDialog(false);
         toast({ title: editDoc ? "Document Updated" : "Document Added" });
-        loadAll();
+        loadAll({ silent: true });
       } else {
         console.error(error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -504,7 +506,7 @@ const AdminClientDetail: React.FC = () => {
       } catch { /* storage cleanup is best-effort */ }
     }
     const { error } = await supabase.from("documents").delete().eq("id", id);
-    if (!error) { toast({ title: "Document Deleted" }); loadAll(); }
+    if (!error) { toast({ title: "Document Deleted" }); loadAll({ silent: true }); }
   };
 
   // Link CRUD
@@ -541,7 +543,7 @@ const AdminClientDetail: React.FC = () => {
       if (!error) {
         setShowLinkDialog(false);
         toast({ title: editLink ? "Link Updated" : "Link Added" });
-        loadAll();
+        loadAll({ silent: true });
       } else {
         console.error(error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -554,7 +556,7 @@ const AdminClientDetail: React.FC = () => {
   const deleteLink = async (id: string) => {
     if (!confirm("Delete this link?")) return;
     const { error } = await supabase.from("client_links").delete().eq("id", id);
-    if (!error) { toast({ title: "Link Deleted" }); loadAll(); }
+    if (!error) { toast({ title: "Link Deleted" }); loadAll({ silent: true }); }
   };
 
   // Notes CRUD
@@ -573,7 +575,7 @@ const AdminClientDetail: React.FC = () => {
         setNewNote("");
         setNewNoteVisible(false);
         toast({ title: "Note Added" });
-        loadAll();
+        loadAll({ silent: true });
       } else {
         console.error(error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -595,7 +597,7 @@ const AdminClientDetail: React.FC = () => {
         setEditNoteId(null);
         setEditNoteContent("");
         toast({ title: "Note Updated" });
-        loadAll();
+        loadAll({ silent: true });
       } else {
         console.error(error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -611,14 +613,14 @@ const AdminClientDetail: React.FC = () => {
     }).eq("id", note.id);
     if (!error) {
       toast({ title: note.visibleToClient ? "Note hidden from client" : "Note shared with client" });
-      loadAll();
+      loadAll({ silent: true });
     }
   };
 
   const deleteNote = async (id: string) => {
     if (!confirm("Delete this note?")) return;
     const { error } = await supabase.from("client_notes").delete().eq("id", id);
-    if (!error) { toast({ title: "Note Deleted" }); loadAll(); }
+    if (!error) { toast({ title: "Note Deleted" }); loadAll({ silent: true }); }
   };
 
   const linkTypeIcons: Record<LinkType, React.ElementType> = {
