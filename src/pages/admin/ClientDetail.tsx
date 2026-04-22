@@ -5,7 +5,8 @@ import {
   CheckCircle, Clock, Lock, MessageSquare, FileText, Activity, ClipboardList,
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
   Globe, FolderOpen, Video, Table2, Palette, Upload, X,
-  Instagram, Twitter, Linkedin, Youtube, Facebook, Hash, StickyNote, Send
+  Instagram, Twitter, Linkedin, Youtube, Facebook, Hash, StickyNote, Send,
+  UserPlus, KeyRound
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,6 +50,7 @@ interface ClientData {
   airtableUrl?: string;
   manager?: { id: string; firstName: string; lastName: string } | null;
   package_template_id?: string;
+  userId?: string | null;
 }
 
 interface Phase {
@@ -122,6 +124,11 @@ const AdminClientDetail: React.FC = () => {
   const [editNoteId, setEditNoteId] = useState<string | null>(null);
   const [editNoteContent, setEditNoteContent] = useState("");
 
+  // Portal Login State
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [creatingLogin, setCreatingLogin] = useState(false);
+
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -168,6 +175,7 @@ const AdminClientDetail: React.FC = () => {
         airtableUrl: c.airtable_url ?? undefined,
         manager: managerRaw ? { id: managerRaw.id, firstName: managerRaw.first_name, lastName: managerRaw.last_name } : null,
         package_template_id: c.package_template_id ?? undefined,
+        userId: c.user_id ?? null,
       });
 
       // --- Managers & Templates ---
@@ -623,6 +631,37 @@ const AdminClientDetail: React.FC = () => {
     if (!error) { toast({ title: "Note Deleted" }); loadAll({ silent: true }); }
   };
 
+  const createPortalLogin = async () => {
+    if (!loginForm.email || !loginForm.password || !clientId || !client) return;
+    if (loginForm.password.length < 6) {
+      toast({ title: "Password Too Short", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    setCreatingLogin(true);
+    try {
+      // Split the client contact name into first/last for the profile
+      const nameParts = client.primaryContactName.trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      await edgeFetch("create-user", {
+        email: loginForm.email,
+        password: loginForm.password,
+        first_name: firstName,
+        last_name: lastName,
+        role: "client",
+        client_id: clientId,
+      });
+      toast({ title: "Portal Login Created", description: `Login created for ${loginForm.email}. The client can now sign in.` });
+      setShowLoginDialog(false);
+      loadAll({ silent: true });
+    } catch (err: any) {
+      toast({ title: "Failed to Create Login", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setCreatingLogin(false);
+    }
+  };
+
   const linkTypeIcons: Record<LinkType, React.ElementType> = {
     folder: FolderOpen, document: FileText, video: Video,
     spreadsheet: Table2, design: Palette, other: Globe,
@@ -672,6 +711,24 @@ const AdminClientDetail: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Portal Login Status */}
+          {client.userId ? (
+            <Badge className="gap-1.5 bg-success/10 text-success border-success/30 px-3 py-1.5 text-xs font-medium">
+              <KeyRound className="h-3.5 w-3.5" /> Portal Login Active
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setLoginForm({ email: client.primaryContactEmail || "", password: "" });
+                setShowLoginDialog(true);
+              }}
+            >
+              <UserPlus className="h-4 w-4" /> Create Portal Login
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -798,6 +855,46 @@ const AdminClientDetail: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
             <Button onClick={handleEditClient} disabled={savingClient}>{savingClient ? "Saving..." : "Save Changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Portal Login Dialog */}
+      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" /> Create Portal Login
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Create a login account so <strong>{client?.primaryContactName || "this client"}</strong> can access their portal dashboard.
+          </p>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Email *</label>
+              <Input
+                type="email"
+                value={loginForm.email}
+                onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="client@company.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Password *</label>
+              <Input
+                type="password"
+                value={loginForm.password}
+                onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Min 6 characters"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLoginDialog(false)}>Cancel</Button>
+            <Button onClick={createPortalLogin} disabled={creatingLogin || !loginForm.email || !loginForm.password}>
+              {creatingLogin ? "Creating…" : "Create Login"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
