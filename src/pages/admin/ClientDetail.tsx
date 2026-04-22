@@ -707,7 +707,7 @@ const AdminClientDetail: React.FC = () => {
   };
 
   const linkTypeLabels: Record<LinkType, string> = {
-    folder: "Folder", document: "Document", video: "Video",
+    folder: "Folder", document: "Document", video: "Media",
     spreadsheet: "Spreadsheet", design: "Design", other: "Link",
     website: "Website", instagram: "Instagram", facebook: "Facebook",
     twitter: "Twitter / X", linkedin: "LinkedIn", tiktok: "TikTok", youtube: "YouTube",
@@ -1239,7 +1239,7 @@ const AdminClientDetail: React.FC = () => {
                     <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="folder">Folder</SelectItem>
                     <SelectItem value="document">Document</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="video">Media</SelectItem>
                     <SelectItem value="spreadsheet">Spreadsheet</SelectItem>
                     <SelectItem value="design">Design</SelectItem>
                     <SelectItem value="website">Website</SelectItem>
@@ -1637,7 +1637,7 @@ const AdminClientDetail: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="folder">📁 Folder</SelectItem>
                   <SelectItem value="document">📄 Document</SelectItem>
-                  <SelectItem value="video">🎬 Video</SelectItem>
+                  <SelectItem value="video">🎬 Media</SelectItem>
                   <SelectItem value="spreadsheet">📊 Spreadsheet</SelectItem>
                   <SelectItem value="design">🎨 Design</SelectItem>
                   <SelectItem value="website">🌐 Website</SelectItem>
