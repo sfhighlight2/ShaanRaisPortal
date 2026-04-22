@@ -6,7 +6,7 @@ import {
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
   Globe, FolderOpen, Video, Table2, Palette, Upload, X,
   Instagram, Twitter, Linkedin, Youtube, Facebook, Hash, StickyNote, Send,
-  UserPlus, KeyRound
+  UserPlus, KeyRound, Search, Filter
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -128,6 +128,15 @@ const AdminClientDetail: React.FC = () => {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [creatingLogin, setCreatingLogin] = useState(false);
+
+  // Tab Search & Filter State
+  const [tabSearch, setTabSearch] = useState({
+    tasks: "", tasksFilter: "all",
+    deliverables: "", deliverablesFilter: "all",
+    documents: "", documentsFilter: "all",
+    links: "", linksFilter: "all",
+    notes: "", notesFilter: "all",
+  });
 
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -662,6 +671,34 @@ const AdminClientDetail: React.FC = () => {
     }
   };
 
+  // ── Filtered data for tab search/filter ──
+  const sq = (key: keyof typeof tabSearch) => (tabSearch[key] as string).toLowerCase();
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = !tabSearch.tasks || t.title.toLowerCase().includes(sq("tasks")) || (t.phaseName || "").toLowerCase().includes(sq("tasks"));
+    const matchesFilter = tabSearch.tasksFilter === "all" || t.status === tabSearch.tasksFilter;
+    return matchesSearch && matchesFilter;
+  });
+  const filteredDeliverables = deliverables.filter(d => {
+    const matchesSearch = !tabSearch.deliverables || d.title.toLowerCase().includes(sq("deliverables")) || (d.phaseName || "").toLowerCase().includes(sq("deliverables"));
+    const matchesFilter = tabSearch.deliverablesFilter === "all" || (tabSearch.deliverablesFilter === "visible" ? d.visibleToClient : !d.visibleToClient);
+    return matchesSearch && matchesFilter;
+  });
+  const filteredDocuments = documents.filter(d => {
+    const matchesSearch = !tabSearch.documents || d.title.toLowerCase().includes(sq("documents"));
+    const matchesFilter = tabSearch.documentsFilter === "all" || d.documentType === tabSearch.documentsFilter;
+    return matchesSearch && matchesFilter;
+  });
+  const filteredLinks = clientLinks.filter(l => {
+    const matchesSearch = !tabSearch.links || l.title.toLowerCase().includes(sq("links")) || (l.description || "").toLowerCase().includes(sq("links"));
+    const matchesFilter = tabSearch.linksFilter === "all" || l.linkType === tabSearch.linksFilter;
+    return matchesSearch && matchesFilter;
+  });
+  const filteredNotes = notes.filter(n => {
+    const matchesSearch = !tabSearch.notes || n.content.toLowerCase().includes(sq("notes")) || (n.authorName || "").toLowerCase().includes(sq("notes"));
+    const matchesFilter = tabSearch.notesFilter === "all" || (tabSearch.notesFilter === "visible" ? n.visibleToClient : !n.visibleToClient);
+    return matchesSearch && matchesFilter;
+  });
+
   const linkTypeIcons: Record<LinkType, React.ElementType> = {
     folder: FolderOpen, document: FileText, video: Video,
     spreadsheet: Table2, design: Palette, other: Globe,
@@ -1042,9 +1079,26 @@ const AdminClientDetail: React.FC = () => {
               <Button size="sm" onClick={() => openTaskDialog()}><Plus className="h-4 w-4 mr-2" /> New Task</Button>
             </CardHeader>
             <CardContent>
-              {tasks.length === 0 ? <p className="text-sm text-muted-foreground py-4">No tasks.</p> : (
+              {/* Search & Filter */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Search tasks..." value={tabSearch.tasks} onChange={e => setTabSearch(s => ({ ...s, tasks: e.target.value }))} className="pl-9 h-8 text-sm" />
+                </div>
+                <Select value={tabSearch.tasksFilter} onValueChange={v => setTabSearch(s => ({ ...s, tasksFilter: v }))}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs"><Filter className="h-3 w-3 mr-1.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filteredTasks.length === 0 ? <p className="text-sm text-muted-foreground py-4">{tasks.length === 0 ? "No tasks." : "No tasks match your search."}</p> : (
                 <div className="space-y-2">
-                  {tasks.map(t => (
+                  {filteredTasks.map(t => (
                     <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
                       <div className={`h-6 w-6 rounded-full flex items-center justify-center ${t.status === "completed" ? "bg-success/10" : "bg-muted"}`}>
                         {t.status === "completed" ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Clock className="h-3 w-3 text-muted-foreground" />}
@@ -1071,9 +1125,24 @@ const AdminClientDetail: React.FC = () => {
               <Button size="sm" onClick={() => openDelivDialog()}><Plus className="h-4 w-4 mr-2" /> New Deliverable</Button>
             </CardHeader>
             <CardContent>
-              {deliverables.length === 0 ? <p className="text-sm text-muted-foreground py-4">No deliverables.</p> : (
+              {/* Search & Filter */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Search deliverables..." value={tabSearch.deliverables} onChange={e => setTabSearch(s => ({ ...s, deliverables: e.target.value }))} className="pl-9 h-8 text-sm" />
+                </div>
+                <Select value={tabSearch.deliverablesFilter} onValueChange={v => setTabSearch(s => ({ ...s, deliverablesFilter: v }))}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs"><Filter className="h-3 w-3 mr-1.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="visible">Visible</SelectItem>
+                    <SelectItem value="internal">Internal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filteredDeliverables.length === 0 ? <p className="text-sm text-muted-foreground py-4">{deliverables.length === 0 ? "No deliverables." : "No deliverables match your search."}</p> : (
                 <div className="space-y-2">
-                  {deliverables.map(d => (
+                  {filteredDeliverables.map(d => (
                     <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
                       <FileText className="h-4 w-4 text-primary" />
                       <div className="flex-1"><p className="text-sm font-medium">{d.title}</p><p className="text-xs text-muted-foreground">{d.phaseName}</p></div>
@@ -1097,9 +1166,26 @@ const AdminClientDetail: React.FC = () => {
               <Button size="sm" onClick={() => openDocDialog()}><Plus className="h-4 w-4 mr-2" /> Add Document</Button>
             </CardHeader>
             <CardContent>
-              {documents.length === 0 ? <p className="text-sm text-muted-foreground py-4">No documents.</p> : (
+              {/* Search & Filter */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Search documents..." value={tabSearch.documents} onChange={e => setTabSearch(s => ({ ...s, documents: e.target.value }))} className="pl-9 h-8 text-sm" />
+                </div>
+                <Select value={tabSearch.documentsFilter} onValueChange={v => setTabSearch(s => ({ ...s, documentsFilter: v }))}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs"><Filter className="h-3 w-3 mr-1.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="sow">SOW</SelectItem>
+                    <SelectItem value="agreement">Agreement</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filteredDocuments.length === 0 ? <p className="text-sm text-muted-foreground py-4">{documents.length === 0 ? "No documents." : "No documents match your search."}</p> : (
                 <div className="space-y-2">
-                  {documents.map(d => (
+                  {filteredDocuments.map(d => (
                     <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
                       {d.fileUrl ? (d.fileUrl.includes("client-documents") ? <Upload className="h-4 w-4 text-primary shrink-0" /> : <Link2 className="h-4 w-4 text-primary shrink-0" />) : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
                       <div className="flex-1 min-w-0">
@@ -1141,9 +1227,35 @@ const AdminClientDetail: React.FC = () => {
               <Button size="sm" onClick={() => openLinkDialog()}><Plus className="h-4 w-4 mr-2" /> Add Link</Button>
             </CardHeader>
             <CardContent>
-              {clientLinks.length === 0 ? <p className="text-sm text-muted-foreground py-4">No links.</p> : (
+              {/* Search & Filter */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Search links..." value={tabSearch.links} onChange={e => setTabSearch(s => ({ ...s, links: e.target.value }))} className="pl-9 h-8 text-sm" />
+                </div>
+                <Select value={tabSearch.linksFilter} onValueChange={v => setTabSearch(s => ({ ...s, linksFilter: v }))}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs"><Filter className="h-3 w-3 mr-1.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="folder">Folder</SelectItem>
+                    <SelectItem value="document">Document</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="spreadsheet">Spreadsheet</SelectItem>
+                    <SelectItem value="design">Design</SelectItem>
+                    <SelectItem value="website">Website</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                    <SelectItem value="twitter">Twitter / X</SelectItem>
+                    <SelectItem value="linkedin">LinkedIn</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filteredLinks.length === 0 ? <p className="text-sm text-muted-foreground py-4">{clientLinks.length === 0 ? "No links." : "No links match your search."}</p> : (
                 <div className="space-y-2">
-                  {clientLinks.map(l => {
+                  {filteredLinks.map(l => {
                     const LIcon = linkTypeIcons[l.linkType];
                     return (
                       <div key={l.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
@@ -1222,12 +1334,28 @@ const AdminClientDetail: React.FC = () => {
                 </div>
               </div>
 
+              {/* Search & Filter Notes */}
+              <div className="flex items-center gap-2 mb-4 pt-2 border-t">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Search notes..." value={tabSearch.notes} onChange={e => setTabSearch(s => ({ ...s, notes: e.target.value }))} className="pl-9 h-8 text-sm" />
+                </div>
+                <Select value={tabSearch.notesFilter} onValueChange={v => setTabSearch(s => ({ ...s, notesFilter: v }))}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs"><Filter className="h-3 w-3 mr-1.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Notes</SelectItem>
+                    <SelectItem value="visible">Visible</SelectItem>
+                    <SelectItem value="internal">Internal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Notes List */}
-              {notes.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No notes yet. Add the first one above.</p>
+              {filteredNotes.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">{notes.length === 0 ? "No notes yet. Add the first one above." : "No notes match your search."}</p>
               ) : (
                 <div className="space-y-3">
-                  {notes.map(n => (
+                  {filteredNotes.map(n => (
                     <div key={n.id} className={`p-3 rounded-lg border group hover:border-primary/30 transition-colors ${n.visibleToClient ? "border-primary/20 bg-primary/[0.02]" : ""}`}>
                       {editNoteId === n.id ? (
                         <div className="space-y-2">
