@@ -131,10 +131,10 @@ const AdminClientDetail: React.FC = () => {
 
   // Tab Search & Filter State
   const [tabSearch, setTabSearch] = useState({
-    tasks: "", tasksFilter: "all",
-    deliverables: "", deliverablesFilter: "all",
-    documents: "", documentsFilter: "all",
-    links: "", linksFilter: "all",
+    tasks: "", tasksFilter: "all", tasksSort: "default",
+    deliverables: "", deliverablesFilter: "all", deliverablesSort: "default",
+    documents: "", documentsFilter: "all", documentsSort: "newest",
+    links: "", linksFilter: "all", linksSort: "newest",
     notes: "", notesFilter: "all",
   });
 
@@ -671,28 +671,57 @@ const AdminClientDetail: React.FC = () => {
     }
   };
 
-  // ── Filtered data for tab search/filter ──
+  // ── Filtered + Sorted data for tab search/filter ──
   const sq = (key: keyof typeof tabSearch) => (tabSearch[key] as string).toLowerCase();
-  const filteredTasks = tasks.filter(t => {
-    const matchesSearch = !tabSearch.tasks || t.title.toLowerCase().includes(sq("tasks")) || (t.phaseName || "").toLowerCase().includes(sq("tasks"));
-    const matchesFilter = tabSearch.tasksFilter === "all" || t.status === tabSearch.tasksFilter;
-    return matchesSearch && matchesFilter;
-  });
-  const filteredDeliverables = deliverables.filter(d => {
-    const matchesSearch = !tabSearch.deliverables || d.title.toLowerCase().includes(sq("deliverables")) || (d.phaseName || "").toLowerCase().includes(sq("deliverables"));
-    const matchesFilter = tabSearch.deliverablesFilter === "all" || (tabSearch.deliverablesFilter === "visible" ? d.visibleToClient : !d.visibleToClient);
-    return matchesSearch && matchesFilter;
-  });
-  const filteredDocuments = documents.filter(d => {
-    const matchesSearch = !tabSearch.documents || d.title.toLowerCase().includes(sq("documents"));
-    const matchesFilter = tabSearch.documentsFilter === "all" || d.documentType === tabSearch.documentsFilter;
-    return matchesSearch && matchesFilter;
-  });
-  const filteredLinks = clientLinks.filter(l => {
-    const matchesSearch = !tabSearch.links || l.title.toLowerCase().includes(sq("links")) || (l.description || "").toLowerCase().includes(sq("links"));
-    const matchesFilter = tabSearch.linksFilter === "all" || l.linkType === tabSearch.linksFilter;
-    return matchesSearch && matchesFilter;
-  });
+
+  const sortedTasks = (() => {
+    const filtered = tasks.filter(t => {
+      const matchesSearch = !tabSearch.tasks || t.title.toLowerCase().includes(sq("tasks")) || (t.phaseName || "").toLowerCase().includes(sq("tasks"));
+      const matchesFilter = tabSearch.tasksFilter === "all" || t.status === tabSearch.tasksFilter;
+      return matchesSearch && matchesFilter;
+    });
+    if (tabSearch.tasksSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.tasksSort === "newest") return [...filtered].reverse();
+    return filtered;
+  })();
+  const filteredTasks = sortedTasks;
+
+  const sortedDeliverables = (() => {
+    const filtered = deliverables.filter(d => {
+      const matchesSearch = !tabSearch.deliverables || d.title.toLowerCase().includes(sq("deliverables")) || (d.phaseName || "").toLowerCase().includes(sq("deliverables"));
+      const matchesFilter = tabSearch.deliverablesFilter === "all" || (tabSearch.deliverablesFilter === "visible" ? d.visibleToClient : !d.visibleToClient);
+      return matchesSearch && matchesFilter;
+    });
+    if (tabSearch.deliverablesSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.deliverablesSort === "newest") return [...filtered].reverse();
+    return filtered;
+  })();
+  const filteredDeliverables = sortedDeliverables;
+
+  const sortedDocuments = (() => {
+    const filtered = documents.filter(d => {
+      const matchesSearch = !tabSearch.documents || d.title.toLowerCase().includes(sq("documents"));
+      const matchesFilter = tabSearch.documentsFilter === "all" || d.documentType === tabSearch.documentsFilter;
+      return matchesSearch && matchesFilter;
+    });
+    if (tabSearch.documentsSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.documentsSort === "newest") return [...filtered].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    return filtered;
+  })();
+  const filteredDocuments = sortedDocuments;
+
+  const sortedLinks = (() => {
+    const filtered = clientLinks.filter(l => {
+      const matchesSearch = !tabSearch.links || l.title.toLowerCase().includes(sq("links")) || (l.description || "").toLowerCase().includes(sq("links"));
+      const matchesFilter = tabSearch.linksFilter === "all" || l.linkType === tabSearch.linksFilter;
+      return matchesSearch && matchesFilter;
+    });
+    if (tabSearch.linksSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.linksSort === "newest") return [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return filtered;
+  })();
+  const filteredLinks = sortedLinks;
+
   const filteredNotes = notes.filter(n => {
     const matchesSearch = !tabSearch.notes || n.content.toLowerCase().includes(sq("notes")) || (n.authorName || "").toLowerCase().includes(sq("notes"));
     const matchesFilter = tabSearch.notesFilter === "all" || (tabSearch.notesFilter === "visible" ? n.visibleToClient : !n.visibleToClient);
@@ -1080,8 +1109,8 @@ const AdminClientDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Search & Filter */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input placeholder="Search tasks..." value={tabSearch.tasks} onChange={e => setTabSearch(s => ({ ...s, tasks: e.target.value }))} className="pl-9 h-8 text-sm" />
                 </div>
@@ -1093,6 +1122,14 @@ const AdminClientDetail: React.FC = () => {
                     <SelectItem value="in_progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="blocked">Blocked</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={tabSearch.tasksSort} onValueChange={v => setTabSearch(s => ({ ...s, tasksSort: v }))}>
+                  <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default Order</SelectItem>
+                    <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="newest">Newest First</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1126,8 +1163,8 @@ const AdminClientDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Search & Filter */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input placeholder="Search deliverables..." value={tabSearch.deliverables} onChange={e => setTabSearch(s => ({ ...s, deliverables: e.target.value }))} className="pl-9 h-8 text-sm" />
                 </div>
@@ -1137,6 +1174,14 @@ const AdminClientDetail: React.FC = () => {
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="visible">Visible</SelectItem>
                     <SelectItem value="internal">Internal</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={tabSearch.deliverablesSort} onValueChange={v => setTabSearch(s => ({ ...s, deliverablesSort: v }))}>
+                  <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default Order</SelectItem>
+                    <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="newest">Newest First</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1167,8 +1212,8 @@ const AdminClientDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Search & Filter */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input placeholder="Search documents..." value={tabSearch.documents} onChange={e => setTabSearch(s => ({ ...s, documents: e.target.value }))} className="pl-9 h-8 text-sm" />
                 </div>
@@ -1180,6 +1225,13 @@ const AdminClientDetail: React.FC = () => {
                     <SelectItem value="sow">SOW</SelectItem>
                     <SelectItem value="agreement">Agreement</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={tabSearch.documentsSort} onValueChange={v => setTabSearch(s => ({ ...s, documentsSort: v }))}>
+                  <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest First</SelectItem>
+                    <SelectItem value="az">A → Z</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1228,8 +1280,8 @@ const AdminClientDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Search & Filter */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <div className="relative flex-1 min-w-[160px] max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input placeholder="Search links..." value={tabSearch.links} onChange={e => setTabSearch(s => ({ ...s, links: e.target.value }))} className="pl-9 h-8 text-sm" />
                 </div>
@@ -1250,6 +1302,13 @@ const AdminClientDetail: React.FC = () => {
                     <SelectItem value="tiktok">TikTok</SelectItem>
                     <SelectItem value="youtube">YouTube</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={tabSearch.linksSort} onValueChange={v => setTabSearch(s => ({ ...s, linksSort: v }))}>
+                  <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest First</SelectItem>
+                    <SelectItem value="az">A → Z</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
