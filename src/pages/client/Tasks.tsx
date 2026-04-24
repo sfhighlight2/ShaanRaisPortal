@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle, Clock, Lock,
-  ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare,
+  ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare, StickyNote,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -203,6 +203,12 @@ const ClientTasks: React.FC = () => {
                               </Badge>
                             )}
                           </div>
+                        {task.notes && !locked && (
+                             <div className="mt-2 flex items-start gap-1.5 rounded-md bg-primary/5 border border-primary/15 px-2.5 py-2">
+                               <StickyNote className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
+                               <p className="text-xs text-foreground/80 leading-relaxed">{task.notes}</p>
+                             </div>
+                           )}
                         </div>
                         {isCompleted ? (
                           <p className="text-xs text-muted-foreground shrink-0">

@@ -77,6 +77,7 @@ export interface Task {
   phaseId: string;
   title: string;
   description?: string;
+  notes?: string;
   taskType: TaskType;
   status: TaskStatus;
   completedAt?: string;

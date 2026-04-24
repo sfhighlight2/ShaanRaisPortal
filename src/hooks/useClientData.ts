@@ -158,6 +158,7 @@ async function fetchAllClientData(
             phaseId: t.phase_id,
             title: t.title,
             description: t.description,
+            notes: t.notes ?? undefined,
             taskType: t.task_type,
             status: t.status,
             completedAt: t.completed_at,

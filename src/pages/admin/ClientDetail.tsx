@@ -60,7 +60,7 @@ interface Phase {
   sortOrder: number;
 }
 
-interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; }
+interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; notes?: string; }
 interface Deliverable { id: string; title: string; phaseId: string; phaseName?: string; visibleToClient: boolean; }
 interface Update { id: string; title: string; createdAt: string; }
 interface Question { id: string; subject: string; message: string; response?: string; status: string; }
@@ -91,7 +91,7 @@ const AdminClientDetail: React.FC = () => {
   // Task State
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
-  const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", status: "pending", phaseId: "" });
+  const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", status: "pending", phaseId: "", notes: "" });
   const [savingTask, setSavingTask] = useState(false);
 
   // Deliverable State
@@ -211,6 +211,7 @@ const AdminClientDetail: React.FC = () => {
           setTasks((tasksRes2.data || []).map(t => ({
             id: t.id, title: t.title, taskType: t.task_type, status: t.status,
             phaseId: t.phase_id, phaseName: formattedPhases.find(p => p.id === t.phase_id)?.name,
+            notes: t.notes ?? undefined,
           })));
 
           setDeliverables((deliverablesRes.data || []).map(d => ({
@@ -324,10 +325,10 @@ const AdminClientDetail: React.FC = () => {
   const openTaskDialog = (task?: Task) => {
     if (task) {
       setEditTask(task);
-      setTaskForm({ title: task.title, taskType: task.taskType, status: task.status, phaseId: task.phaseId });
+      setTaskForm({ title: task.title, taskType: task.taskType, status: task.status, phaseId: task.phaseId, notes: task.notes || "" });
     } else {
       setEditTask(null);
-      setTaskForm({ title: "", taskType: "review", status: "pending", phaseId: phases[0]?.id || "" });
+      setTaskForm({ title: "", taskType: "review", status: "pending", phaseId: phases[0]?.id || "", notes: "" });
     }
     setShowTaskDialog(true);
   };
@@ -344,14 +345,16 @@ const AdminClientDetail: React.FC = () => {
       if (editTask) {
         const { error: err } = await supabase.from("tasks").update({
           title: taskForm.title, task_type: taskForm.taskType,
-          status: taskForm.status, phase_id: taskForm.phaseId
+          status: taskForm.status, phase_id: taskForm.phaseId,
+          notes: taskForm.notes || null,
         }).eq("id", editTask.id);
         error = err;
       } else {
         const { error: err } = await supabase.from("tasks").insert({
           title: taskForm.title, task_type: taskForm.taskType,
           status: taskForm.status, phase_id: taskForm.phaseId,
-          sort_order: sortOrder
+          sort_order: sortOrder,
+          notes: taskForm.notes || null,
         });
         error = err;
       }
@@ -995,6 +998,20 @@ const AdminClientDetail: React.FC = () => {
                 </Select>
               </div>
             </div>
+            {/* Notes — visible to client */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Notes for Client</label>
+                <span className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded px-1.5 py-0.5">Visible to client</span>
+              </div>
+              <textarea
+                value={taskForm.notes}
+                onChange={e => setTaskForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Optional notes or instructions the client will see on this task…"
+                rows={3}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTaskDialog(false)}>Cancel</Button>
@@ -1140,7 +1157,17 @@ const AdminClientDetail: React.FC = () => {
                       <div className={`h-6 w-6 rounded-full flex items-center justify-center ${t.status === "completed" ? "bg-success/10" : "bg-muted"}`}>
                         {t.status === "completed" ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Clock className="h-3 w-3 text-muted-foreground" />}
                       </div>
-                      <div className="flex-1"><p className="text-sm font-medium">{t.title}</p><p className="text-xs text-muted-foreground">{t.phaseName}</p></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{t.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-muted-foreground">{t.phaseName}</p>
+                          {t.notes && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 border border-primary/15 rounded px-1.5 py-0.5">
+                              <StickyNote className="h-2.5 w-2.5" /> Note
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <Badge variant="outline" className="text-[10px] hidden md:inline-flex">{t.taskType}</Badge>
                       <Badge className={`text-[10px] hidden md:inline-flex ${t.status === "completed" ? 'bg-success/10 text-success hover:bg-success/20' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{t.status}</Badge>
                       <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
