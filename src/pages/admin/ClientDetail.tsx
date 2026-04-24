@@ -21,7 +21,75 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { edgeFetch } from "@/lib/edgeFetch";
 import { useToast } from "@/hooks/use-toast";
+import { DndContext, useDraggable, useDroppable, DragOverlay, closestCorners } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import type { ClientStatus, PhaseStatus, PackageTemplate, LinkType } from "@/lib/types";
+
+// ── Kanban Components ──
+function KanbanColumn({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  const { isOver, setNodeRef } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex flex-col gap-2 p-3 bg-muted/30 rounded-lg min-h-[200px] border-2 transition-colors ${
+        isOver ? "border-primary bg-primary/5" : "border-transparent"
+      }`}
+    >
+      <h3 className="font-semibold text-sm mb-2 text-muted-foreground">{title}</h3>
+      <div className="flex-1 flex flex-col gap-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function KanbanTaskCard({ task, openTaskDialog, deleteTask }: any) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: task,
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex flex-col gap-2 p-3 bg-card rounded-lg border shadow-sm cursor-grab active:cursor-grabbing group hover:border-primary/50 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-tight">{task.title}</p>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onPointerDown={(e) => e.stopPropagation()} onClick={() => openTaskDialog(task)}><Edit className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onPointerDown={(e) => e.stopPropagation()} onClick={() => deleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+        <Badge variant="outline" className="text-[10px]">{task.taskType}</Badge>
+        {task.notes && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 border border-primary/15 rounded px-1.5 py-0.5">
+            <StickyNote className="h-2 w-2" /> Note
+          </span>
+        )}
+      </div>
+      {task.subtasks && task.subtasks.length > 0 && (
+        <div className="space-y-1 mt-2 border-t pt-2">
+          {task.subtasks.map((st: any) => (
+            <div key={st.id} className="flex items-center gap-1.5 text-xs">
+              <CheckSquare className={`h-3 w-3 shrink-0 ${st.completed ? 'text-success' : 'text-muted-foreground'}`} />
+              <span className={st.completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}>{st.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
@@ -60,7 +128,7 @@ interface Phase {
   sortOrder: number;
 }
 
-interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; notes?: string; }
+interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; notes?: string; subtasks?: { id: string; title: string; completed: boolean; sortOrder: number }[]; }
 interface Deliverable { id: string; title: string; phaseId: string; phaseName?: string; visibleToClient: boolean; }
 interface Update { id: string; title: string; createdAt: string; }
 interface Question { id: string; subject: string; message: string; response?: string; status: string; }
@@ -140,6 +208,8 @@ const AdminClientDetail: React.FC = () => {
     links: "", linksFilter: "all", linksSort: "newest",
     notes: "", notesFilter: "all",
   });
+  const [tasksViewMode, setTasksViewMode] = useState<"list" | "kanban">("list");
+  const [activeDragTask, setActiveDragTask] = useState<any>(null);
 
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -207,7 +277,7 @@ const AdminClientDetail: React.FC = () => {
         const phaseIds = formattedPhases.map(p => p.id);
         if (phaseIds.length > 0) {
           const [tasksRes2, deliverablesRes] = await Promise.all([
-            supabase.from("tasks").select("*").in("phase_id", phaseIds).order("sort_order"),
+            supabase.from("tasks").select("*, task_subtasks(*)").in("phase_id", phaseIds).order("sort_order"),
             supabase.from("deliverables").select("*").in("phase_id", phaseIds),
           ]);
 
@@ -215,6 +285,9 @@ const AdminClientDetail: React.FC = () => {
             id: t.id, title: t.title, taskType: t.task_type, status: t.status,
             phaseId: t.phase_id, phaseName: formattedPhases.find(p => p.id === t.phase_id)?.name,
             notes: t.notes ?? undefined,
+            subtasks: (t.task_subtasks || []).map((st: any) => ({
+              id: st.id, title: st.title, completed: st.completed, sortOrder: st.sort_order
+            })).sort((a: any, b: any) => a.sortOrder - b.sortOrder),
           })));
 
           setDeliverables((deliverablesRes.data || []).map(d => ({
@@ -600,6 +673,8 @@ const AdminClientDetail: React.FC = () => {
         console.error(error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
       }
+    } catch (err) {
+      toast({ title: "Failed to save link", variant: "destructive" });
     } finally {
       setSavingLink(false);
     }
@@ -609,6 +684,36 @@ const AdminClientDetail: React.FC = () => {
     if (!confirm("Delete this link?")) return;
     const { error } = await supabase.from("client_links").delete().eq("id", id);
     if (!error) { toast({ title: "Link Deleted" }); loadAll({ silent: true }); }
+  };
+
+  // Kanban Drag Handlers
+  const handleDragStart = (event: any) => {
+    const { active } = event;
+    setActiveDragTask(active.data.current);
+  };
+
+  const handleDragEnd = async (event: any) => {
+    setActiveDragTask(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const taskId = active.id;
+    const newStatus = over.id; // pending, in_progress, completed, blocked
+    
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || task.status === newStatus) return;
+
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+
+    // Persist
+    const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
+    if (error) {
+      toast({ title: "Failed to update status", variant: "destructive" });
+      loadAll({ silent: true }); // revert
+    } else {
+      toast({ title: "Task status updated" });
+    }
   };
 
   // Notes CRUD
@@ -716,6 +821,7 @@ const AdminClientDetail: React.FC = () => {
       return matchesSearch && matchesFilter;
     });
     if (tabSearch.tasksSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.tasksSort === "za") return [...filtered].sort((a, b) => b.title.localeCompare(a.title));
     if (tabSearch.tasksSort === "newest") return [...filtered].reverse();
     return filtered;
   })();
@@ -728,6 +834,7 @@ const AdminClientDetail: React.FC = () => {
       return matchesSearch && matchesFilter;
     });
     if (tabSearch.deliverablesSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.deliverablesSort === "za") return [...filtered].sort((a, b) => b.title.localeCompare(a.title));
     if (tabSearch.deliverablesSort === "newest") return [...filtered].reverse();
     return filtered;
   })();
@@ -740,6 +847,7 @@ const AdminClientDetail: React.FC = () => {
       return matchesSearch && matchesFilter;
     });
     if (tabSearch.documentsSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.documentsSort === "za") return [...filtered].sort((a, b) => b.title.localeCompare(a.title));
     if (tabSearch.documentsSort === "newest") return [...filtered].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     return filtered;
   })();
@@ -752,6 +860,7 @@ const AdminClientDetail: React.FC = () => {
       return matchesSearch && matchesFilter;
     });
     if (tabSearch.linksSort === "az") return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (tabSearch.linksSort === "za") return [...filtered].sort((a, b) => b.title.localeCompare(a.title));
     if (tabSearch.linksSort === "newest") return [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return filtered;
   })();
@@ -1235,37 +1344,92 @@ const AdminClientDetail: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="default">Default Order</SelectItem>
                     <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="za">Z → A</SelectItem>
                     <SelectItem value="newest">Newest First</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-1 bg-muted p-1 rounded-md ml-auto">
+                  <Button variant={tasksViewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-xs" onClick={() => setTasksViewMode("list")}>
+                    <ClipboardList className="h-3.5 w-3.5 mr-1" /> List
+                  </Button>
+                  <Button variant={tasksViewMode === "kanban" ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-xs" onClick={() => setTasksViewMode("kanban")}>
+                    <Table2 className="h-3.5 w-3.5 mr-1" /> Kanban
+                  </Button>
+                </div>
               </div>
               {filteredTasks.length === 0 ? <p className="text-sm text-muted-foreground py-4">{tasks.length === 0 ? "No tasks." : "No tasks match your search."}</p> : (
-                <div className="space-y-2">
-                  {filteredTasks.map(t => (
-                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
-                      <div className={`h-6 w-6 rounded-full flex items-center justify-center ${t.status === "completed" ? "bg-success/10" : "bg-muted"}`}>
-                        {t.status === "completed" ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Clock className="h-3 w-3 text-muted-foreground" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{t.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-xs text-muted-foreground">{t.phaseName}</p>
-                          {t.notes && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 border border-primary/15 rounded px-1.5 py-0.5">
-                              <StickyNote className="h-2.5 w-2.5" /> Note
-                            </span>
-                          )}
+                tasksViewMode === "list" ? (
+                  <div className="space-y-2">
+                    {filteredTasks.map(t => (
+                      <div key={t.id} className="flex flex-col gap-2 p-3 rounded-lg border group hover:border-primary/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`h-6 w-6 rounded-full flex items-center justify-center ${t.status === "completed" ? "bg-success/10" : "bg-muted"}`}>
+                            {t.status === "completed" ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Clock className="h-3 w-3 text-muted-foreground" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{t.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-muted-foreground">{t.phaseName}</p>
+                              {t.notes && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 border border-primary/15 rounded px-1.5 py-0.5">
+                                  <StickyNote className="h-2.5 w-2.5" /> Note
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] hidden md:inline-flex">{t.taskType}</Badge>
+                          <Badge className={`text-[10px] hidden md:inline-flex ${t.status === "completed" ? 'bg-success/10 text-success hover:bg-success/20' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{t.status}</Badge>
+                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTaskDialog(t)}><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteTask(t.id)}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
                         </div>
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="ml-9 space-y-1.5 mt-1 border-t pt-2">
+                            {t.subtasks.map(st => (
+                              <div key={st.id} className="flex items-center gap-2 text-sm">
+                                <CheckSquare className={`h-3.5 w-3.5 shrink-0 ${st.completed ? 'text-success' : 'text-muted-foreground'}`} />
+                                <span className={st.completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}>{st.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <Badge variant="outline" className="text-[10px] hidden md:inline-flex">{t.taskType}</Badge>
-                      <Badge className={`text-[10px] hidden md:inline-flex ${t.status === "completed" ? 'bg-success/10 text-success hover:bg-success/20' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{t.status}</Badge>
-                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTaskDialog(t)}><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteTask(t.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                      <KanbanColumn id="pending" title="Pending">
+                        {filteredTasks.filter(t => t.status === "pending").map(t => (
+                          <KanbanTaskCard key={t.id} task={t} openTaskDialog={openTaskDialog} deleteTask={deleteTask} />
+                        ))}
+                      </KanbanColumn>
+                      <KanbanColumn id="in_progress" title="In Progress">
+                        {filteredTasks.filter(t => t.status === "in_progress").map(t => (
+                          <KanbanTaskCard key={t.id} task={t} openTaskDialog={openTaskDialog} deleteTask={deleteTask} />
+                        ))}
+                      </KanbanColumn>
+                      <KanbanColumn id="completed" title="Completed">
+                        {filteredTasks.filter(t => t.status === "completed").map(t => (
+                          <KanbanTaskCard key={t.id} task={t} openTaskDialog={openTaskDialog} deleteTask={deleteTask} />
+                        ))}
+                      </KanbanColumn>
+                      <KanbanColumn id="blocked" title="Blocked">
+                        {filteredTasks.filter(t => t.status === "blocked").map(t => (
+                          <KanbanTaskCard key={t.id} task={t} openTaskDialog={openTaskDialog} deleteTask={deleteTask} />
+                        ))}
+                      </KanbanColumn>
                     </div>
-                  ))}
-                </div>
+                    <DragOverlay>
+                      {activeDragTask ? (
+                        <div className="opacity-80">
+                          <KanbanTaskCard task={activeDragTask} openTaskDialog={openTaskDialog} deleteTask={deleteTask} />
+                        </div>
+                      ) : null}
+                    </DragOverlay>
+                  </DndContext>
+                )
               )}
             </CardContent>
           </Card>
@@ -1297,6 +1461,7 @@ const AdminClientDetail: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="default">Default Order</SelectItem>
                     <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="za">Z → A</SelectItem>
                     <SelectItem value="newest">Newest First</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1348,6 +1513,7 @@ const AdminClientDetail: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="newest">Newest First</SelectItem>
                     <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="za">Z → A</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1425,6 +1591,7 @@ const AdminClientDetail: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="newest">Newest First</SelectItem>
                     <SelectItem value="az">A → Z</SelectItem>
+                    <SelectItem value="za">Z → A</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

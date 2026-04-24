@@ -45,26 +45,36 @@ function SortableTaskItem({ task, isAdmin, openTaskDialog, deleteTask, phaseId }
   const style = { transform: CSS.Transform.toString(transform), transition };
   const Icon = taskTypeIcons[task.task_type] || taskTypeIcons[task.taskType] || ClipboardList;
   const isVisible = task.visible_to_client ?? task.visibleToClient ?? true;
-  const subtaskCount = (task.subtasks || []).length;
+  const subtasks = task.subtasks || [];
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded group/item">
-      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
-        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
-      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-      <span className="flex-1 truncate">{task.title}</span>
-      {subtaskCount > 0 && (
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium shrink-0">
-          {subtaskCount} sub
-        </span>
-      )}
-      <Badge variant="outline" className={`text-[9px] shrink-0 ${isVisible ? "bg-primary/5 border-primary/20 text-primary" : "text-muted-foreground"}`}>
-        {isVisible ? "Client" : "Internal"}
-      </Badge>
-      {isAdmin && (
-        <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openTaskDialog(phaseId, task)}><Edit className="h-3 w-3" /></Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
+    <div ref={setNodeRef} style={style} className="flex flex-col gap-1 p-2 bg-muted/50 rounded group/item">
+      <div className="flex items-center gap-2 text-sm">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="flex-1 truncate">{task.title}</span>
+        <Badge variant="outline" className={`text-[9px] shrink-0 ${isVisible ? "bg-primary/5 border-primary/20 text-primary" : "text-muted-foreground"}`}>
+          {isVisible ? "Client" : "Internal"}
+        </Badge>
+        {isAdmin && (
+          <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openTaskDialog(phaseId, task)}><Edit className="h-3 w-3" /></Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
+          </div>
+        )}
+      </div>
+      {subtasks.length > 0 && (
+        <div className="ml-8 space-y-1 mt-1 border-t border-border/50 pt-1.5">
+          {subtasks.sort((a: any, b: any) => a.sort_order - b.sort_order).map((st: any) => (
+            <div key={st.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckSquare className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+              <span className="truncate">{st.title}</span>
+              {!(st.visible_to_client ?? true) && (
+                <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded ml-auto">Internal</span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
