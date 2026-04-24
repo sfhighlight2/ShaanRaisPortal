@@ -185,7 +185,7 @@ const AdminTemplates: React.FC = () => {
   // Task State
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
-  const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", phaseId: "" });
+  const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", phaseId: "", notes: "" });
 
   // Deliverable State
   const [showDelivDialog, setShowDelivDialog] = useState(false);
@@ -395,10 +395,10 @@ const AdminTemplates: React.FC = () => {
   const openTaskDialog = (phaseId: string, task?: any) => {
     if (task) {
       setEditTask(task);
-      setTaskForm({ title: task.title, taskType: task.task_type || task.taskType, phaseId });
+      setTaskForm({ title: task.title, taskType: task.task_type || task.taskType, phaseId, notes: task.notes || "" });
     } else {
       setEditTask(null);
-      setTaskForm({ title: "", taskType: "review", phaseId });
+      setTaskForm({ title: "", taskType: "review", phaseId, notes: "" });
     }
     setShowTaskDialog(true);
   };
@@ -406,8 +406,8 @@ const AdminTemplates: React.FC = () => {
   const saveTask = async () => {
     if (!taskForm.title) return;
     const { error } = editTask
-      ? await supabase.from("template_tasks").update({ title: taskForm.title, task_type: taskForm.taskType }).eq("id", editTask.id)
-      : await supabase.from("template_tasks").insert({ template_phase_id: taskForm.phaseId, title: taskForm.title, task_type: taskForm.taskType, sort_order: 1 });
+      ? await supabase.from("template_tasks").update({ title: taskForm.title, task_type: taskForm.taskType, notes: taskForm.notes || null }).eq("id", editTask.id)
+      : await supabase.from("template_tasks").insert({ template_phase_id: taskForm.phaseId, title: taskForm.title, task_type: taskForm.taskType, notes: taskForm.notes || null, sort_order: 1 });
     if (!error) { 
       toast({ title: "Saved", description: editTask ? "Task updated." : "Task added." });
       setShowTaskDialog(false); 
@@ -735,6 +735,20 @@ const AdminTemplates: React.FC = () => {
                   {(["review", "upload", "approval", "form", "general"]).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            {/* Notes — visible to client */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Notes for Client</label>
+                <span className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded px-1.5 py-0.5">Visible to client</span>
+              </div>
+              <textarea
+                value={taskForm.notes}
+                onChange={e => setTaskForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Optional notes or instructions the client will see on this task…"
+                rows={3}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
+              />
             </div>
           </div>
           <DialogFooter>

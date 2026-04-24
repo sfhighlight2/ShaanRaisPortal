@@ -34,6 +34,7 @@ const taskTypeLabels: Record<string, string> = {
 const ClientTasks: React.FC = () => {
   const [activeTab, setActiveTab] = useState("pending");
   const [completing, setCompleting] = useState<string | null>(null);
+  const [togglingSubtask, setTogglingSubtask] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -187,29 +188,58 @@ const ClientTasks: React.FC = () => {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-medium ${isCompleted ? "line-through text-muted-foreground" : locked ? "text-muted-foreground" : "text-foreground"}`}>
-                            {task.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <Badge variant="outline" className="text-[10px]">
-                              {task.phaseName}
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px]">
-                              {taskTypeLabels[task.taskType] || task.taskType}
-                            </Badge>
-                            {locked && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                Complete previous task first
-                              </Badge>
-                            )}
-                          </div>
-                        {task.notes && !locked && (
+                           <p className={`font-medium ${isCompleted ? "line-through text-muted-foreground" : locked ? "text-muted-foreground" : "text-foreground"}`}>
+                             {task.title}
+                           </p>
+                           <div className="flex items-center gap-2 mt-1 flex-wrap">
+                             <Badge variant="outline" className="text-[10px]">
+                               {task.phaseName}
+                             </Badge>
+                             <Badge variant="outline" className="text-[10px]">
+                               {taskTypeLabels[task.taskType] || task.taskType}
+                             </Badge>
+                             {locked && (
+                               <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                 Complete previous task first
+                               </Badge>
+                             )}
+                           </div>
+                           {task.notes && !locked && (
                              <div className="mt-2 flex items-start gap-1.5 rounded-md bg-primary/5 border border-primary/15 px-2.5 py-2">
                                <StickyNote className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
                                <p className="text-xs text-foreground/80 leading-relaxed">{task.notes}</p>
                              </div>
                            )}
-                        </div>
+                           {task.subtasks && task.subtasks.length > 0 && !locked && (
+                             <div className="mt-2 space-y-1.5 border border-border rounded-lg px-3 py-2 bg-muted/20">
+                               {task.subtasks.map(st => (
+                                 <label key={st.id} className="flex items-center gap-2 cursor-pointer group/st">
+                                   <input
+                                     type="checkbox"
+                                     checked={st.completed}
+                                     disabled={togglingSubtask === st.id || isCompleted}
+                                     onChange={async () => {
+                                       setTogglingSubtask(st.id);
+                                       try {
+                                         await supabase
+                                           .from('task_subtasks')
+                                           .update({ completed: !st.completed })
+                                           .eq('id', st.id);
+                                         refetch();
+                                       } finally {
+                                         setTogglingSubtask(null);
+                                       }
+                                     }}
+                                     className="h-3.5 w-3.5 rounded border-border accent-primary shrink-0"
+                                   />
+                                   <span className={`text-xs leading-relaxed ${st.completed ? 'line-through text-muted-foreground' : 'text-foreground/80'}`}>
+                                     {st.title}
+                                   </span>
+                                 </label>
+                               ))}
+                             </div>
+                           )}
+                         </div>
                         {isCompleted ? (
                           <p className="text-xs text-muted-foreground shrink-0">
                             {task.completedAt

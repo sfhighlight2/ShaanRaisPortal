@@ -93,6 +93,9 @@ const AdminClientDetail: React.FC = () => {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [taskForm, setTaskForm] = useState({ title: "", taskType: "review", status: "pending", phaseId: "", notes: "" });
   const [savingTask, setSavingTask] = useState(false);
+  // Subtask state
+  const [subtasks, setSubtasks] = useState<{ id?: string; title: string; completed: boolean }[]>([]);
+  const [subtaskInput, setSubtaskInput] = useState("");
 
   // Deliverable State
   const [showDelivDialog, setShowDelivDialog] = useState(false);
@@ -322,14 +325,19 @@ const AdminClientDetail: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  const openTaskDialog = (task?: Task) => {
+  const openTaskDialog = async (task?: Task) => {
     if (task) {
       setEditTask(task);
       setTaskForm({ title: task.title, taskType: task.taskType, status: task.status, phaseId: task.phaseId, notes: task.notes || "" });
+      // Load existing subtasks
+      const { data: stData } = await supabase.from('task_subtasks').select('*').eq('task_id', task.id).order('sort_order');
+      setSubtasks((stData || []).map(st => ({ id: st.id, title: st.title, completed: st.completed })));
     } else {
       setEditTask(null);
       setTaskForm({ title: "", taskType: "review", status: "pending", phaseId: phases[0]?.id || "", notes: "" });
+      setSubtasks([]);
     }
+    setSubtaskInput("");
     setShowTaskDialog(true);
   };
 
@@ -342,6 +350,7 @@ const AdminClientDetail: React.FC = () => {
       const sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
 
       let error;
+      let savedTaskId = editTask?.id;
       if (editTask) {
         const { error: err } = await supabase.from("tasks").update({
           title: taskForm.title, task_type: taskForm.taskType,
@@ -350,13 +359,24 @@ const AdminClientDetail: React.FC = () => {
         }).eq("id", editTask.id);
         error = err;
       } else {
-        const { error: err } = await supabase.from("tasks").insert({
+        const { data: inserted, error: err } = await supabase.from("tasks").insert({
           title: taskForm.title, task_type: taskForm.taskType,
           status: taskForm.status, phase_id: taskForm.phaseId,
           sort_order: sortOrder,
           notes: taskForm.notes || null,
-        });
+        }).select('id').single();
         error = err;
+        if (!err && inserted) savedTaskId = inserted.id;
+      }
+
+      if (!error && savedTaskId) {
+        // Sync subtasks: delete all then re-insert
+        await supabase.from('task_subtasks').delete().eq('task_id', savedTaskId);
+        if (subtasks.length > 0) {
+          await supabase.from('task_subtasks').insert(
+            subtasks.map((st, i) => ({ task_id: savedTaskId, title: st.title, completed: st.completed, sort_order: i }))
+          );
+        }
       }
       if (!error) {
         setShowTaskDialog(false);
@@ -970,7 +990,7 @@ const AdminClientDetail: React.FC = () => {
 
       {/* Shared Task Form Dialog */}
       <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editTask ? "Edit Task" : "New Task"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5"><label className="text-sm font-medium">Task Title</label><Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Gather Requirements" /></div>
@@ -1011,6 +1031,63 @@ const AdminClientDetail: React.FC = () => {
                 rows={3}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
               />
+            </div>
+            {/* Sub-tasks */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Sub-tasks</label>
+                <span className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded px-1.5 py-0.5">Visible to client</span>
+              </div>
+              {subtasks.length > 0 && (
+                <div className="space-y-1.5">
+                  {subtasks.map((st, i) => (
+                    <div key={i} className="flex items-center gap-2 group">
+                      <input
+                        type="checkbox"
+                        checked={st.completed}
+                        onChange={e => setSubtasks(prev => prev.map((s, j) => j === i ? { ...s, completed: e.target.checked } : s))}
+                        className="h-4 w-4 rounded border-border accent-primary shrink-0"
+                      />
+                      <span className={`flex-1 text-sm ${st.completed ? 'line-through text-muted-foreground' : ''}`}>{st.title}</span>
+                      <button
+                        onClick={() => setSubtasks(prev => prev.filter((_, j) => j !== i))}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={subtaskInput}
+                  onChange={e => setSubtaskInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && subtaskInput.trim()) {
+                      e.preventDefault();
+                      setSubtasks(prev => [...prev, { title: subtaskInput.trim(), completed: false }]);
+                      setSubtaskInput('');
+                    }
+                  }}
+                  placeholder="Add a sub-task and press Enter…"
+                  className="text-sm h-8"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 shrink-0"
+                  onClick={() => {
+                    if (subtaskInput.trim()) {
+                      setSubtasks(prev => [...prev, { title: subtaskInput.trim(), completed: false }]);
+                      setSubtaskInput('');
+                    }
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -152,7 +152,27 @@ async function fetchAllClientData(
 
         if (tasksRes.error) throw tasksRes.error;
         const phaseOrderMap = new Map(formattedPhases.map((p, i) => [p.id, i]));
-        formattedTasks = (tasksRes.data || [])
+        const rawTasks = tasksRes.data || [];
+        const taskIds = rawTasks.map(t => t.id);
+
+        // Fetch subtasks for all tasks in one query
+        let subtasksByTaskId: Record<string, { id: string; taskId: string; title: string; completed: boolean; sortOrder: number }[]> = {};
+        if (taskIds.length > 0) {
+          const { data: subtasksData } = await supabase
+            .from('task_subtasks')
+            .select('*')
+            .in('task_id', taskIds)
+            .order('sort_order');
+          for (const st of subtasksData || []) {
+            if (!subtasksByTaskId[st.task_id]) subtasksByTaskId[st.task_id] = [];
+            subtasksByTaskId[st.task_id].push({
+              id: st.id, taskId: st.task_id, title: st.title,
+              completed: st.completed, sortOrder: st.sort_order,
+            });
+          }
+        }
+
+        formattedTasks = rawTasks
           .map(t => ({
             id: t.id,
             phaseId: t.phase_id,
@@ -165,6 +185,7 @@ async function fetchAllClientData(
             assignedToUserId: t.assigned_to_user_id,
             visibleToClient: t.visible_to_client,
             sortOrder: t.sort_order,
+            subtasks: subtasksByTaskId[t.id] || [],
           }))
           .sort((a, b) => {
             const phaseA = phaseOrderMap.get(a.phaseId) ?? 999;
@@ -172,6 +193,7 @@ async function fetchAllClientData(
             if (phaseA !== phaseB) return phaseA - phaseB;
             return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
           });
+
 
         if (deliverablesRes.error) throw deliverablesRes.error;
         formattedDeliverables = (deliverablesRes.data || [])

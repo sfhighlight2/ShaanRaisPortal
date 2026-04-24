@@ -72,6 +72,14 @@ export interface Phase {
   sortOrder: number;
 }
 
+export interface Subtask {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+}
+
 export interface Task {
   id: string;
   phaseId: string;
@@ -84,7 +92,9 @@ export interface Task {
   assignedToUserId?: string;
   visibleToClient: boolean;
   sortOrder: number;
+  subtasks?: Subtask[];
 }
+
 
 export interface Deliverable {
   id: string;
