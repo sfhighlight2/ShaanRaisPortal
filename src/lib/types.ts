@@ -219,14 +219,24 @@ export interface TemplatePhase {
   deliverables: TemplateDeliverable[];
 }
 
+export interface TemplateTaskSubtask {
+  id?: string;
+  title: string;
+  sortOrder: number;
+  visibleToClient: boolean;
+}
+
 export interface TemplateTask {
   id: string;
   phaseId: string;
   title: string;
   description?: string;
+  notes?: string;
   taskType: TaskType;
   required: boolean;
   sortOrder: number;
+  visibleToClient: boolean;
+  subtasks?: TemplateTaskSubtask[];
 }
 
 export interface TemplateDeliverable {

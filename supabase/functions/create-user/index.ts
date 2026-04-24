@@ -185,6 +185,81 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Delete template task ──
+    if (action === "delete_task") {
+      const { task_id } = body;
+      if (!task_id) throw new Error("task_id is required");
+      const { error } = await adminClient.from("template_tasks").delete().eq("id", task_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Delete template phase (the 'delete_phase' alias used by Templates.tsx) ──
+    if (action === "delete_phase") {
+      const { phase_id } = body;
+      if (!phase_id) throw new Error("phase_id is required");
+      await adminClient.from("template_tasks").delete().eq("template_phase_id", phase_id);
+      await adminClient.from("template_deliverables").delete().eq("template_phase_id", phase_id);
+      const { error } = await adminClient.from("template_phases").delete().eq("id", phase_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Delete template deliverable ──
+    if (action === "delete_deliverable") {
+      const { deliverable_id } = body;
+      if (!deliverable_id) throw new Error("deliverable_id is required");
+      const { error } = await adminClient.from("template_deliverables").delete().eq("id", deliverable_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Reorder template tasks ──
+    if (action === "reorder_tasks") {
+      const { tasks: tasksList } = body;
+      if (!tasksList || !Array.isArray(tasksList)) throw new Error("tasks array is required");
+      for (const t of tasksList) {
+        await adminClient.from("template_tasks").update({ sort_order: t.sort_order }).eq("id", t.id);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Reorder template phases ──
+    if (action === "reorder_phases") {
+      const { phases: phasesList } = body;
+      if (!phasesList || !Array.isArray(phasesList)) throw new Error("phases array is required");
+      for (const p of phasesList) {
+        await adminClient.from("template_phases").update({ sort_order: p.sort_order }).eq("id", p.id);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Reorder template deliverables ──
+    if (action === "reorder_deliverables") {
+      const { deliverables: delivsList } = body;
+      if (!delivsList || !Array.isArray(delivsList)) throw new Error("deliverables array is required");
+      for (const d of delivsList) {
+        await adminClient.from("template_deliverables").update({ sort_order: d.sort_order }).eq("id", d.id);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Update template ──
+    if (action === "update_template") {
+      const { template_id, name, description } = body;
+      if (!template_id) throw new Error("template_id is required");
+      const { error } = await adminClient.from("package_templates").update({ name, description }).eq("id", template_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── Guard: if action is set but didn't match any handler, reject early ──
+    // This prevents unknown action strings from falling through to the create-user
+    // block and triggering a confusing "Cannot create a user without email or phone" error.
+    if (action) {
+      throw new Error(`Unknown action: "${action}". Check that the action string matches a supported handler.`);
+    }
+
     // ── Default: Create user ──
     const { email, password, first_name, last_name, role, client_id } = body;
 

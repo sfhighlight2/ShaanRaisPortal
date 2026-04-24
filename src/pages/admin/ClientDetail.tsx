@@ -349,43 +349,55 @@ const AdminClientDetail: React.FC = () => {
       const phaseTasks = tasks.filter(t => t.phaseId === taskForm.phaseId);
       const sortOrder = phaseTasks.length > 0 ? phaseTasks.length + 1 : 1;
 
-      let error;
-      let savedTaskId = editTask?.id;
       if (editTask) {
-        const { error: err } = await supabase.from("tasks").update({
+        const { error } = await supabase.from("tasks").update({
           title: taskForm.title, task_type: taskForm.taskType,
           status: taskForm.status, phase_id: taskForm.phaseId,
           notes: taskForm.notes || null,
         }).eq("id", editTask.id);
-        error = err;
+        if (error) { console.error(error); return; }
+
+        // Sync subtasks
+        await supabase.from('task_subtasks').delete().eq('task_id', editTask.id);
+        if (subtasks.length > 0) {
+          await supabase.from('task_subtasks').insert(
+            subtasks.map((st, i) => ({ task_id: editTask.id, title: st.title, completed: st.completed, sort_order: i }))
+          );
+        }
       } else {
-        const { data: inserted, error: err } = await supabase.from("tasks").insert({
+        const { error } = await supabase.from("tasks").insert({
           title: taskForm.title, task_type: taskForm.taskType,
           status: taskForm.status, phase_id: taskForm.phaseId,
           sort_order: sortOrder,
           notes: taskForm.notes || null,
-        }).select('id').single();
-        error = err;
-        if (!err && inserted) savedTaskId = inserted.id;
-      }
+        });
+        if (error) { console.error(error); return; }
 
-      if (!error && savedTaskId) {
-        // Sync subtasks: delete all then re-insert
-        await supabase.from('task_subtasks').delete().eq('task_id', savedTaskId);
+        // If there are subtasks, fetch the newly inserted task to get its id
         if (subtasks.length > 0) {
-          await supabase.from('task_subtasks').insert(
-            subtasks.map((st, i) => ({ task_id: savedTaskId, title: st.title, completed: st.completed, sort_order: i }))
-          );
+          const { data: newTask } = await supabase
+            .from('tasks')
+            .select('id')
+            .eq('phase_id', taskForm.phaseId)
+            .eq('title', taskForm.title)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (newTask?.id) {
+            await supabase.from('task_subtasks').insert(
+              subtasks.map((st, i) => ({ task_id: newTask.id, title: st.title, completed: st.completed, sort_order: i }))
+            );
+          }
         }
       }
-      if (!error) {
-        setShowTaskDialog(false);
-        loadAll({ silent: true });
-      } else console.error(error);
+
+      setShowTaskDialog(false);
+      loadAll({ silent: true });
     } finally {
       setSavingTask(false);
     }
   };
+
 
   const deleteTask = async (id: string) => {
     if (!confirm("Delete this task?")) return;
