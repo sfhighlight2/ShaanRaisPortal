@@ -21,11 +21,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { edgeFetch } from "@/lib/edgeFetch";
 import { useToast } from "@/hooks/use-toast";
-import { DndContext, useDraggable, useDroppable, DragOverlay, closestCorners } from "@dnd-kit/core";
+import { DndContext, useDraggable, useDroppable, DragOverlay, closestCorners, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ClientStatus, PhaseStatus, PackageTemplate, LinkType } from "@/lib/types";
 
 // ── Kanban Components ──
+function SortableSubtaskItem({ st, index, toggleCompleted, removeSubtask }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: st.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 group bg-muted/50 p-1.5 rounded-md border border-transparent hover:border-border transition-colors">
+      <button type="button" {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none p-0.5 shrink-0">
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <input
+        type="checkbox"
+        checked={st.completed}
+        onChange={() => toggleCompleted(index)}
+        className="h-4 w-4 rounded border-border accent-primary shrink-0"
+      />
+      <span className={`flex-1 text-sm truncate ${st.completed ? 'line-through text-muted-foreground' : ''}`}>{st.title}</span>
+      <button
+        type="button"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={() => removeSubtask(index)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive h-6 w-6 rounded flex items-center justify-center hover:bg-destructive/10 shrink-0"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function KanbanColumn({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   const { isOver, setNodeRef } = useDroppable({ id });
   return (
@@ -716,6 +744,17 @@ const AdminClientDetail: React.FC = () => {
     }
   };
 
+  const handleSubtaskDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSubtasks((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
   // Notes CRUD
   const addNote = async () => {
     if (!newNote.trim() || !clientId) return;
@@ -1160,24 +1199,20 @@ const AdminClientDetail: React.FC = () => {
                 <span className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded px-1.5 py-0.5">Visible to client</span>
               </div>
               {subtasks.length > 0 && (
-                <div className="space-y-1.5">
-                  {subtasks.map((st, i) => (
-                    <div key={i} className="flex items-center gap-2 group">
-                      <input
-                        type="checkbox"
-                        checked={st.completed}
-                        onChange={e => setSubtasks(prev => prev.map((s, j) => j === i ? { ...s, completed: e.target.checked } : s))}
-                        className="h-4 w-4 rounded border-border accent-primary shrink-0"
-                      />
-                      <span className={`flex-1 text-sm ${st.completed ? 'line-through text-muted-foreground' : ''}`}>{st.title}</span>
-                      <button
-                        onClick={() => setSubtasks(prev => prev.filter((_, j) => j !== i))}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                  <DndContext collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
+                    <SortableContext items={subtasks.map(s => s.id as string)} strategy={verticalListSortingStrategy}>
+                      {subtasks.map((st, i) => (
+                        <SortableSubtaskItem
+                          key={st.id}
+                          st={st}
+                          index={i}
+                          toggleCompleted={(idx: number) => setSubtasks(prev => prev.map((s, j) => j === idx ? { ...s, completed: !s.completed } : s))}
+                          removeSubtask={(idx: number) => setSubtasks(prev => prev.filter((_, j) => j !== idx))}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
               <div className="flex gap-2">
@@ -1187,7 +1222,7 @@ const AdminClientDetail: React.FC = () => {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && subtaskInput.trim()) {
                       e.preventDefault();
-                      setSubtasks(prev => [...prev, { title: subtaskInput.trim(), completed: false }]);
+                      setSubtasks(prev => [...prev, { id: crypto.randomUUID(), title: subtaskInput.trim(), completed: false }]);
                       setSubtaskInput('');
                     }
                   }}
@@ -1201,7 +1236,7 @@ const AdminClientDetail: React.FC = () => {
                   className="h-8 px-2 shrink-0"
                   onClick={() => {
                     if (subtaskInput.trim()) {
-                      setSubtasks(prev => [...prev, { title: subtaskInput.trim(), completed: false }]);
+                      setSubtasks(prev => [...prev, { id: crypto.randomUUID(), title: subtaskInput.trim(), completed: false }]);
                       setSubtaskInput('');
                     }
                   }}

@@ -106,6 +106,43 @@ function SortableDelivItem({ deliv, isAdmin, openDelivDialog, deleteDeliv, phase
   );
 }
 
+// ── Sortable Subtask Item ──
+function SortableSubtaskItem({ st, index, toggleVisibility, removeSubtask }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: st.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 group">
+      <div className="flex-1 flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-transparent hover:border-border transition-colors">
+        <button type="button" {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none p-0.5 shrink-0">
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <span className="flex-1 text-sm truncate">{st.title}</span>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={() => toggleVisibility(index)}
+          className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors ${
+            st.visibleToClient
+              ? "bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
+              : "bg-muted border-transparent text-muted-foreground hover:bg-muted/80"
+          }`}
+          title={st.visibleToClient ? "Click to hide from client" : "Click to show to client"}
+        >
+          {st.visibleToClient ? "Client" : "Internal"}
+        </button>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={() => removeSubtask(index)}
+          className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Sortable Phase Item ──
 function SortablePhaseItem({
   phase, index, templateId, isExpanded, togglePhase, isAdmin,
@@ -594,6 +631,17 @@ const AdminTemplates: React.FC = () => {
     }
   };
 
+  const handleSubtaskDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSubtasks((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
   const handleDragEndDeliv = async (event: DragEndEvent, phaseId: string) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -838,33 +886,19 @@ const AdminTemplates: React.FC = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium">Subtasks</label>
               <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
-                {subtasks.map((st, i) => (
-                  <div key={i} className="flex items-center gap-2 group">
-                    <div className="flex-1 flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-transparent hover:border-border transition-colors">
-                      <span className="flex-1 text-sm truncate">{st.title}</span>
-                      {/* Per-subtask visibility badge */}
-                      <button
-                        type="button"
-                        onClick={() => setSubtasks(prev => prev.map((s, idx) => idx === i ? { ...s, visibleToClient: !s.visibleToClient } : s))}
-                        className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors ${
-                          st.visibleToClient
-                            ? "bg-primary/5 border-primary/20 text-primary"
-                            : "bg-muted border-border text-muted-foreground"
-                        }`}
-                        title={st.visibleToClient ? "Click to hide from client" : "Click to show to client"}
-                      >
-                        {st.visibleToClient ? "Client" : "Internal"}
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSubtasks(prev => prev.filter((_, idx) => idx !== i))}
-                      className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
+                  <SortableContext items={subtasks.map(s => s.id as string)} strategy={verticalListSortingStrategy}>
+                    {subtasks.map((st, i) => (
+                      <SortableSubtaskItem
+                        key={st.id}
+                        st={st}
+                        index={i}
+                        toggleVisibility={(idx: number) => setSubtasks(prev => prev.map((s, idx2) => idx2 === idx ? { ...s, visibleToClient: !s.visibleToClient } : s))}
+                        removeSubtask={(idx: number) => setSubtasks(prev => prev.filter((_, idx2) => idx2 !== idx))}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -874,7 +908,7 @@ const AdminTemplates: React.FC = () => {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       const val = subtaskInput.trim();
-                      if (val) { setSubtasks(prev => [...prev, { title: val, visibleToClient: true }]); setSubtaskInput(""); }
+                      if (val) { setSubtasks(prev => [...prev, { id: crypto.randomUUID(), title: val, visibleToClient: true }]); setSubtaskInput(""); }
                     }
                   }}
                   placeholder="Add subtask and press Enter…"
@@ -887,7 +921,7 @@ const AdminTemplates: React.FC = () => {
                   className="shrink-0"
                   onClick={() => {
                     const val = subtaskInput.trim();
-                    if (val) { setSubtasks(prev => [...prev, { title: val, visibleToClient: true }]); setSubtaskInput(""); }
+                    if (val) { setSubtasks(prev => [...prev, { id: crypto.randomUUID(), title: val, visibleToClient: true }]); setSubtaskInput(""); }
                   }}
                 >
                   <Plus className="h-4 w-4" />
