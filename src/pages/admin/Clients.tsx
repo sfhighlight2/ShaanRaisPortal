@@ -32,6 +32,7 @@ const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
   onboarding: "bg-warning/10 text-warning",
   active: "bg-success/10 text-success",
+  paused: "bg-orange-500/10 text-orange-500",
   waiting_on_client: "bg-destructive/10 text-destructive",
   completed: "bg-primary/10 text-primary",
   archived: "bg-muted text-muted-foreground",
@@ -41,6 +42,7 @@ const statusLabels: Record<ClientStatus, string> = {
   lead: "Prospective client, not yet onboarded",
   onboarding: "Currently being onboarded",
   active: "Actively receiving services",
+  paused: "Temporarily paused",
   waiting_on_client: "Awaiting client action or response",
   completed: "Project / service completed",
   archived: "Archived / inactive",
@@ -140,7 +142,7 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
         <Select value={form.status} onValueChange={v => onChange({ status: v as ClientStatus })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
+            {(["lead", "onboarding", "active", "paused", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
               <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>
             ))}
           </SelectContent>
@@ -176,12 +178,13 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
 );
 // ─────────────────────────────────────────────────────────────────────────────
 
-const KANBAN_STATUSES: ClientStatus[] = ["lead", "onboarding", "active", "waiting_on_client", "completed"];
+const KANBAN_STATUSES: ClientStatus[] = ["lead", "onboarding", "active", "paused", "waiting_on_client", "completed"];
 
 const kanbanColumnStyles: Record<ClientStatus, { header: string; card: string; dot: string }> = {
   lead:              { header: "bg-muted/60 border-border",             card: "border-border",            dot: "bg-muted-foreground" },
   onboarding:        { header: "bg-warning/10 border-warning/30",       card: "border-warning/20",        dot: "bg-warning" },
   active:            { header: "bg-success/10 border-success/30",       card: "border-success/20",        dot: "bg-success" },
+  paused:            { header: "bg-orange-500/10 border-orange-500/30", card: "border-orange-500/20",     dot: "bg-orange-500" },
   waiting_on_client: { header: "bg-destructive/10 border-destructive/30", card: "border-destructive/20", dot: "bg-destructive" },
   completed:         { header: "bg-primary/10 border-primary/30",       card: "border-primary/20",        dot: "bg-primary" },
   archived:          { header: "bg-muted/60 border-border",             card: "border-border",            dot: "bg-muted-foreground" },
@@ -234,7 +237,8 @@ const AdminClients: React.FC = () => {
     const { data } = await supabase
       .from("profiles")
       .select("id, first_name, last_name")
-      .in("role", ["admin", "manager"]);
+      .in("role", ["admin", "manager"])
+      .order("first_name", { ascending: true });
     setManagers((data ?? []) as Manager[]);
   }, []);
 

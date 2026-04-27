@@ -123,6 +123,7 @@ const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
   onboarding: "bg-warning/10 text-warning",
   active: "bg-success/10 text-success",
+  paused: "bg-orange-500/10 text-orange-500",
   waiting_on_client: "bg-destructive/10 text-destructive",
   completed: "bg-primary/10 text-primary",
   archived: "bg-muted text-muted-foreground",
@@ -258,7 +259,7 @@ const AdminClientDetail: React.FC = () => {
       // Fire ALL independent queries in parallel to avoid waterfall loading
       const [clientRes, mgrsRes, tmplsRes, projectsRes, updatesRes, questionsRes, activityRes, docsRes, linksRes, notesRes] = await Promise.all([
         supabase.from("clients").select("*, manager:profiles!account_manager_id(id, first_name, last_name)").eq("id", clientId).single(),
-        supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]),
+        supabase.from("profiles").select("id, first_name, last_name").in("role", ["admin", "manager"]).order("first_name", { ascending: true }),
         supabase.from("package_templates").select("id, name").order("name"),
         supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).limit(1),
         supabase.from("updates").select("id, title, created_at").eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
@@ -1070,7 +1071,7 @@ const AdminClientDetail: React.FC = () => {
                   <Select value={editForm.status} onValueChange={v => setEditForm(f => f ? ({ ...f, status: v as ClientStatus }) : null)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {(["lead", "onboarding", "active", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
+                      {(["lead", "onboarding", "active", "paused", "waiting_on_client", "completed", "archived"] as ClientStatus[]).map(s => (
                         <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>
                       ))}
                     </SelectContent>

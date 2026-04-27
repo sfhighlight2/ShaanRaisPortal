@@ -6,6 +6,7 @@ export type ClientStatus =
   | "lead"
   | "onboarding"
   | "active"
+  | "paused"
   | "waiting_on_client"
   | "completed"
   | "archived";

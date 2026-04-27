@@ -16,11 +16,12 @@ import type { ClientStatus } from "@/lib/types";
 
 const statusColors: Record<ClientStatus, string> = {
   lead: "bg-muted text-muted-foreground",
-  onboarding: "bg-warning/10 text-warning",
-  active: "bg-success/10 text-success",
-  waiting_on_client: "bg-destructive/10 text-destructive",
-  completed: "bg-primary/10 text-primary",
-  archived: "bg-muted text-muted-foreground",
+  onboarding: "bg-warning/10 text-warning border-warning/20",
+  active: "bg-success/10 text-success border-success/20",
+  paused: "bg-orange-500/10 text-orange-500",
+  waiting_on_client: "bg-destructive/10 text-destructive border-destructive/20",
+  completed: "bg-primary/10 text-primary border-primary/20",
+  archived: "bg-muted text-muted-foreground border-border",
 };
 
 interface ClientRow {
