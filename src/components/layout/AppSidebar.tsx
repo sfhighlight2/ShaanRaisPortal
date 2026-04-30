@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, CheckSquare, Package, FileText, Link2,
   Bell, User, Settings, Users, Inbox, ClipboardList, BarChart3, Blocks,
-  GraduationCap, BookOpen, HelpCircle,
+  GraduationCap, BookOpen, HelpCircle, KeyRound,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +34,7 @@ const adminNav = [
   { title: "Templates", url: "/admin/templates", icon: Blocks },
   { title: "Questions", url: "/admin/questions", icon: Inbox },
   { title: "Team", url: "/admin/team", icon: Users },
+  { title: "Portal Users", url: "/admin/users", icon: KeyRound },
   { title: "Onboarding Mgmt", url: "/admin/onboarding-management", icon: GraduationCap },
   { title: "Resources Mgmt", url: "/admin/resources-management", icon: BookOpen },
   { title: "Settings", url: "/admin/settings", icon: Settings },
@@ -43,6 +44,7 @@ const adminNav = [
 const managerNav = [
   { title: "Overview", url: "/admin", icon: BarChart3 },
   { title: "Clients", url: "/admin/clients", icon: Users },
+  { title: "Portal Users", url: "/admin/users", icon: KeyRound },
   { title: "Questions", url: "/admin/questions", icon: Inbox },
   { title: "Onboarding", url: "/admin/onboarding", icon: GraduationCap },
   { title: "Resources", url: "/admin/resources", icon: BookOpen },

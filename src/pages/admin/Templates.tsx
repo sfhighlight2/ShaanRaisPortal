@@ -12,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { edgeFetch } from "@/lib/edgeFetch";
@@ -688,11 +691,11 @@ const AdminTemplates: React.FC = () => {
         )}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editTemplate ? "Edit Template" : "Create New Template"}</DialogTitle>
-          </DialogHeader>
+      <Sheet open={showDialog} onOpenChange={setShowDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader>
+            <SheetTitle>{editTemplate ? "Edit Template" : "Create New Template"}</SheetTitle>
+          </SheetHeader>
           <div className="space-y-4 mt-4">
             <div>
               <label className="text-sm font-medium mb-1.5 block">Template Name *</label>
@@ -712,15 +715,15 @@ const AdminTemplates: React.FC = () => {
               />
             </div>
             {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>}
-            <DialogFooter>
+            <SheetFooter className="mt-6 flex gap-2">
               <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
               <Button onClick={handleSave} disabled={submitting}>
                 {submitting ? "Saving..." : (editTemplate ? "Save Changes" : "Create Template")}
               </Button>
-            </DialogFooter>
+            </SheetFooter>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Templates List */}
       <div className="space-y-4">
@@ -814,25 +817,25 @@ const AdminTemplates: React.FC = () => {
       </div>
 
       {/* Phase Dialog */}
-      <Dialog open={showPhaseDialog} onOpenChange={setShowPhaseDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editPhase ? "Edit Phase" : "Add Phase"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showPhaseDialog} onOpenChange={setShowPhaseDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editPhase ? "Edit Phase" : "Add Phase"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             <div className="space-y-1.5"><label className="text-sm font-medium">Phase Name</label><Input value={phaseForm.name} onChange={e => setPhaseForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Discovery" /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Estimated Timeline (Optional)</label><Input value={phaseForm.estimatedTimeline} onChange={e => setPhaseForm(f => ({ ...f, estimatedTimeline: e.target.value }))} placeholder="e.g. Weeks 1-2" /></div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowPhaseDialog(false)}>Cancel</Button>
             <Button onClick={savePhase}>Save Phase</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Task Dialog */}
-      <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>{editTask ? "Edit Task" : "Add Task"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showTaskDialog} onOpenChange={setShowTaskDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editTask ? "Edit Task" : "Add Task"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             {/* Title */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Task Title</label>
@@ -930,18 +933,18 @@ const AdminTemplates: React.FC = () => {
               <p className="text-[11px] text-muted-foreground">Each subtask inherits the parent task's client visibility by default. Click the badge to override per subtask.</p>
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowTaskDialog(false)}>Cancel</Button>
             <Button onClick={saveTask}>Save Task</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Deliverable Dialog */}
-      <Dialog open={showDelivDialog} onOpenChange={setShowDelivDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editDeliv ? "Edit Deliverable" : "Add Deliverable"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showDelivDialog} onOpenChange={setShowDelivDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editDeliv ? "Edit Deliverable" : "Add Deliverable"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             <div className="space-y-1.5"><label className="text-sm font-medium">Title</label><Input value={delivForm.title} onChange={e => setDelivForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Audit Report" /></div>
             <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/40 mt-2">
               <div className="space-y-0.5">
@@ -954,12 +957,12 @@ const AdminTemplates: React.FC = () => {
               </label>
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowDelivDialog(false)}>Cancel</Button>
             <Button onClick={saveDeliv}>Save Deliverable</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
     </div>
   );

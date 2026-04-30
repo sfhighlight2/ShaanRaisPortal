@@ -1116,50 +1116,52 @@ const AdminClientDetail: React.FC = () => {
       </Sheet>
 
       {/* Create Portal Login Dialog */}
-      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <Sheet open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" /> Create Portal Login
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Create a login account so <strong>{client?.primaryContactName || "this client"}</strong> can access their portal dashboard.
-          </p>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Email *</label>
-              <Input
-                type="email"
-                value={loginForm.email}
-                onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="client@company.com"
-              />
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Create a login account so <strong>{client?.primaryContactName || "this client"}</strong> can access their portal dashboard.
+            </p>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Email *</label>
+                <Input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="client@company.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Password *</label>
+                <Input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Min 6 characters"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Password *</label>
-              <Input
-                type="password"
-                value={loginForm.password}
-                onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
-                placeholder="Min 6 characters"
-              />
-            </div>
+            <SheetFooter className="mt-6 flex gap-2">
+              <Button variant="outline" onClick={() => setShowLoginDialog(false)}>Cancel</Button>
+              <Button onClick={createPortalLogin} disabled={creatingLogin || !loginForm.email || !loginForm.password}>
+                {creatingLogin ? "Creating…" : "Create Login"}
+              </Button>
+            </SheetFooter>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLoginDialog(false)}>Cancel</Button>
-            <Button onClick={createPortalLogin} disabled={creatingLogin || !loginForm.email || !loginForm.password}>
-              {creatingLogin ? "Creating…" : "Create Login"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Shared Task Form Dialog */}
-      <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editTask ? "Edit Task" : "New Task"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showTaskDialog} onOpenChange={setShowTaskDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editTask ? "Edit Task" : "New Task"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             <div className="space-y-1.5"><label className="text-sm font-medium">Task Title</label><Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Gather Requirements" /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Phase</label>
               <Select value={taskForm.phaseId} onValueChange={v => setTaskForm(f => ({ ...f, phaseId: v }))}>
@@ -1253,18 +1255,18 @@ const AdminClientDetail: React.FC = () => {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowTaskDialog(false)}>Cancel</Button>
             <Button onClick={saveTask} disabled={savingTask}>{savingTask ? "Saving..." : "Save Task"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Shared Deliverable Form Dialog */}
-      <Dialog open={showDelivDialog} onOpenChange={setShowDelivDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editDeliv ? "Edit Deliverable" : "New Deliverable"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showDelivDialog} onOpenChange={setShowDelivDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editDeliv ? "Edit Deliverable" : "New Deliverable"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             <div className="space-y-1.5"><label className="text-sm font-medium">Title</label><Input value={delivForm.title} onChange={e => setDelivForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Audit Report" /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Phase</label>
               <Select value={delivForm.phaseId} onValueChange={v => setDelivForm(f => ({ ...f, phaseId: v }))}>
@@ -1283,12 +1285,12 @@ const AdminClientDetail: React.FC = () => {
               </label>
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowDelivDialog(false)}>Cancel</Button>
             <Button onClick={saveDeliv} disabled={savingDeliv}>{savingDeliv ? "Saving..." : "Save Deliverable"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1838,10 +1840,10 @@ const AdminClientDetail: React.FC = () => {
       </Tabs>
 
       {/* Document Dialog */}
-      <Dialog open={showDocDialog} onOpenChange={(open) => { setShowDocDialog(open); if (!open) { setSelectedFile(null); setUploadProgress(0); } }}>
-        <DialogContent className="sm:max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-          <DialogHeader className="shrink-0"><DialogTitle>{editDoc ? "Edit Document" : "Add Document"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
+      <Sheet open={showDocDialog} onOpenChange={(open) => { setShowDocDialog(open); if (!open) { setSelectedFile(null); setUploadProgress(0); } }}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full flex flex-col h-full">
+          <SheetHeader className="shrink-0"><SheetTitle>{editDoc ? "Edit Document" : "Add Document"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4 flex-1">
             <div>
               <Label className="text-sm font-medium">Title</Label>
               <Input className="mt-1" value={docForm.title} onChange={e => setDocForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Service Agreement" />
@@ -1984,7 +1986,7 @@ const AdminClientDetail: React.FC = () => {
               <Label htmlFor="doc-visible" className="text-sm">Visible to client</Label>
             </div>
           </div>
-          <DialogFooter className="shrink-0 border-t border-border pt-4">
+          <SheetFooter className="shrink-0 border-t border-border pt-4 mt-6">
             <Button variant="outline" onClick={() => setShowDocDialog(false)}>Cancel</Button>
             <Button
               onClick={saveDoc}
@@ -1997,14 +1999,14 @@ const AdminClientDetail: React.FC = () => {
                 </span>
               ) : editDoc ? "Update" : "Add Document"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
       {/* Link Dialog */}
-      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editLink ? "Edit Link" : "Add Link"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      <Sheet open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editLink ? "Edit Link" : "Add Link"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
             <div>
               <Label className="text-sm font-medium">Title</Label>
               <Input className="mt-1" value={linkForm.title} onChange={e => setLinkForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Brand Assets Folder" />
@@ -2045,12 +2047,12 @@ const AdminClientDetail: React.FC = () => {
               <Label htmlFor="link-visible" className="text-sm">Visible to client</Label>
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowLinkDialog(false)}>Cancel</Button>
             <Button onClick={saveLink} disabled={savingLink || !linkForm.title || !linkForm.url}>{savingLink ? "Saving..." : editLink ? "Update" : "Add Link"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

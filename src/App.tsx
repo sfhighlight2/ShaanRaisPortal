@@ -35,6 +35,7 @@ const AdminOnboarding = lazy(() => import("./pages/admin/Onboarding"));
 const AdminResources = lazy(() => import("./pages/admin/Resources"));
 const AdminOnboardingManagement = lazy(() => import("./pages/admin/OnboardingManagement"));
 const AdminResourcesManagement = lazy(() => import("./pages/admin/ResourcesManagement"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,6 +102,7 @@ function AppRoutes() {
               {user?.role === "admin" && (
                 <Route path="/admin/team" element={<AdminTeam />} />
               )}
+              <Route path="/admin/users" element={<AdminUsers />} />
               {user?.role === "admin" && (
                 <Route path="/admin/templates" element={<AdminTemplates />} />
               )}

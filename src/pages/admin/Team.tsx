@@ -12,6 +12,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from "@/components/ui/sheet";
+import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -290,12 +293,12 @@ const AdminTeam: React.FC = () => {
       </Card>
 
       {/* Add Team Member Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Team Member</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
+      <Sheet open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader>
+            <SheetTitle>Add Team Member</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-3 py-2 mt-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">First Name *</label>
@@ -327,20 +330,20 @@ const AdminTeam: React.FC = () => {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={submitting}>{submitting ? "Creating…" : "Create"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Member Dialog */}
-      <Dialog open={!!editMember} onOpenChange={v => { if (!v) setEditMember(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Team Member</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
+      <Sheet open={!!editMember} onOpenChange={v => { if (!v) setEditMember(null); }}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader>
+            <SheetTitle>Edit Team Member</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-3 py-2 mt-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">First Name</label>
@@ -364,12 +367,12 @@ const AdminTeam: React.FC = () => {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setEditMember(null)}>Cancel</Button>
             <Button onClick={handleUpdate} disabled={submitting}>{submitting ? "Saving…" : "Save Changes"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete Confirm Dialog */}
       <AlertDialog open={!!deleteMember} onOpenChange={v => { if (!v) { setDeleteMember(null); setDeleteError(""); } }}>

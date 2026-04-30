@@ -15,9 +15,9 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-    Dialog, DialogContent, DialogDescription, DialogHeader,
-    DialogTitle, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+    Sheet, SheetContent, SheetDescription, SheetHeader,
+    SheetTitle, SheetFooter, SheetClose,
+} from "@/components/ui/sheet";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -370,15 +370,15 @@ const AdminResourcesManagement: React.FC = () => {
             </motion.div>
 
             {/* Resource Dialog */}
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>{editingResource ? "Edit Resource" : "Add Resource"}</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+                <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+                    <SheetHeader>
+                        <SheetTitle>{editingResource ? "Edit Resource" : "Add Resource"}</SheetTitle>
+                        <SheetDescription>
                             {editingResource ? "Update the resource details." : "Create a new resource for managers."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="space-y-4 mt-4">
                         <div className="space-y-2">
                             <Label htmlFor="res-title">Title</Label>
                             <Input id="res-title" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g. CRM Training Video" />
@@ -413,21 +413,19 @@ const AdminResourcesManagement: React.FC = () => {
                             <Label htmlFor="res-url">{formType === "file" ? "File Path" : "URL"}</Label>
                             <Input id="res-url" value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder={formType === "file" ? "/files/document.pdf" : "https://..."} />
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mt-2 p-2 border rounded-md">
                             <Label htmlFor="res-visible" className="text-sm">Visible to Managers</Label>
                             <Switch id="res-visible" checked={formVisibleManager} onCheckedChange={setFormVisibleManager} />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                        </DialogClose>
+                    <SheetFooter className="mt-6 flex gap-2">
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleSaveResource} disabled={!formTitle.trim() || !formCategory.trim()}>
                             {editingResource ? "Save Changes" : "Add Resource"}
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
 
             {/* Delete Confirmation */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

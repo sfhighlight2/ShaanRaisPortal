@@ -65,6 +65,42 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Update portal user action ──
+    if (action === "update_portal_user") {
+      const { user_id, first_name, last_name, password, client_id } = body;
+      if (!user_id) throw new Error("user_id is required");
+
+      // 1. Update Profile
+      const profileUpdates: Record<string, unknown> = {};
+      if (first_name) profileUpdates.first_name = first_name;
+      if (last_name !== undefined) profileUpdates.last_name = last_name;
+      if (client_id !== undefined) profileUpdates.client_id = client_id;
+
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error: profileErr } = await adminClient.from("profiles").update(profileUpdates).eq("id", user_id);
+        if (profileErr) throw profileErr;
+      }
+
+      // 2. Update Auth Password if provided
+      if (password) {
+        const { error: authErr } = await adminClient.auth.admin.updateUserById(user_id, { password });
+        if (authErr) throw authErr;
+      }
+
+      // 3. Reassign Client if changed
+      if (client_id !== undefined) {
+        // Clear old client reference
+        await adminClient.from("clients").update({ user_id: null }).eq("user_id", user_id);
+        // Set new client reference
+        if (client_id) {
+          const { error: clientErr } = await adminClient.from("clients").update({ user_id: user_id }).eq("id", client_id);
+          if (clientErr) throw clientErr;
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // ── Delete user action ──
     if (action === "delete") {
       const { user_id } = body;

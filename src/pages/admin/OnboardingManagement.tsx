@@ -12,9 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-    Dialog, DialogContent, DialogDescription, DialogHeader,
-    DialogTitle, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+    Sheet, SheetContent, SheetDescription, SheetHeader,
+    SheetTitle, SheetFooter, SheetClose,
+} from "@/components/ui/sheet";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -378,15 +378,15 @@ const AdminOnboardingManagement: React.FC = () => {
             </div>
 
             {/* Phase Dialog */}
-            <Dialog open={phaseDialogOpen} onOpenChange={setPhaseDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>{editingPhase ? "Edit Phase" : "Add Phase"}</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={phaseDialogOpen} onOpenChange={setPhaseDialogOpen}>
+                <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+                    <SheetHeader>
+                        <SheetTitle>{editingPhase ? "Edit Phase" : "Add Phase"}</SheetTitle>
+                        <SheetDescription>
                             {editingPhase ? "Update the phase details." : "Create a new onboarding phase."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="space-y-4 mt-4">
                         <div className="space-y-2">
                             <Label htmlFor="phase-name">Phase Name</Label>
                             <Input id="phase-name" value={phaseName} onChange={(e) => setPhaseName(e.target.value)} placeholder="e.g. Welcome & Account Setup" />
@@ -396,27 +396,25 @@ const AdminOnboardingManagement: React.FC = () => {
                             <Textarea id="phase-desc" value={phaseDescription} onChange={(e) => setPhaseDescription(e.target.value)} placeholder="Brief description of this phase" rows={3} />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                        </DialogClose>
+                    <SheetFooter className="mt-6 flex gap-2">
+                        <Button variant="outline" onClick={() => setPhaseDialogOpen(false)}>Cancel</Button>
                         <Button onClick={savePhase} disabled={!phaseName.trim()}>
                             {editingPhase ? "Save Changes" : "Create Phase"}
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
 
             {/* Task Dialog */}
-            <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+                <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+                    <SheetHeader>
+                        <SheetTitle>{editingTask ? "Edit Task" : "Add Task"}</SheetTitle>
+                        <SheetDescription>
                             {editingTask ? "Update the task details." : "Add a new task to this phase."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="space-y-4 mt-4">
                         <div className="space-y-2">
                             <Label htmlFor="task-title">Task Title</Label>
                             <Input id="task-title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="e.g. Watch CRM walkthrough" />
@@ -429,21 +427,19 @@ const AdminOnboardingManagement: React.FC = () => {
                             <Label htmlFor="task-link">Resource Link (optional)</Label>
                             <Input id="task-link" value={taskResourceLink} onChange={(e) => setTaskResourceLink(e.target.value)} placeholder="https://..." />
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mt-2 p-2 border rounded-md">
                             <Label htmlFor="task-required" className="text-sm">Required</Label>
                             <Switch id="task-required" checked={taskRequired} onCheckedChange={setTaskRequired} />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                        </DialogClose>
+                    <SheetFooter className="mt-6 flex gap-2">
+                        <Button variant="outline" onClick={() => setTaskDialogOpen(false)}>Cancel</Button>
                         <Button onClick={saveTask} disabled={!taskTitle.trim()}>
                             {editingTask ? "Save Changes" : "Add Task"}
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
 
             {/* Delete Confirmation */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
