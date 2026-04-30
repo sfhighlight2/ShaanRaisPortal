@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
-import type { 
-  Client, Project, Phase, Task, Deliverable, Document, ClientLink, Update, Question, User 
+import type {
+  Client, Project, Phase, Task, Deliverable, Document, ClientLink, Update, User 
 } from "@/lib/types";
 
 export interface ClientNote {
@@ -23,7 +23,6 @@ export interface ClientDataState {
   links: ClientLink[];
   documents: Document[];
   updates: Update[];
-  questions: Question[];
   notes: ClientNote[];
   accountManager: User | null;
   loading: boolean;
@@ -61,7 +60,6 @@ async function fetchAllClientData(
     links: [],
     documents: [],
     updates: [],
-    questions: [],
     notes: [],
     accountManager: null,
   };
@@ -81,7 +79,6 @@ async function fetchAllClientData(
     supabase.from("documents").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("uploaded_at", { ascending: false }),
     supabase.from("client_links").select("*").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
     supabase.from("updates").select("*, created_by_user:profiles!created_by(*)").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
-    supabase.from("questions").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
     supabase.from("client_notes").select("*, author:profiles!created_by(first_name, last_name)").eq("client_id", clientId).eq("visible_to_client", true).order("created_at", { ascending: false }),
   ]);
 
@@ -255,7 +252,7 @@ async function fetchAllClientData(
     createdAt: clientRow.created_at,
   };
 
-  const [docsRes, linksRes, updatesRes, questionsRes, notesRes] = extraDataRes;
+  const [docsRes, linksRes, updatesRes, notesRes] = extraDataRes;
 
   if (docsRes.error) throw docsRes.error;
   const formattedDocuments: Document[] = (docsRes.data || []).map(d => ({
@@ -296,19 +293,7 @@ async function fetchAllClientData(
     } : undefined
   }));
 
-  if (questionsRes.error) throw questionsRes.error;
-  const formattedQuestions: Question[] = (questionsRes.data || []).map(q => ({
-    id: q.id,
-    clientId: q.client_id,
-    projectId: q.project_id,
-    subject: q.subject,
-    message: q.message,
-    attachmentUrl: q.attachment_url,
-    status: q.status,
-    response: q.response,
-    respondedBy: q.responded_by,
-    createdAt: q.created_at,
-  }));
+
 
   if (notesRes.error) {
     console.warn("Failed to load client notes:", notesRes.error.message);
@@ -332,7 +317,6 @@ async function fetchAllClientData(
     links: formattedLinks,
     documents: formattedDocuments,
     updates: formattedUpdates,
-    questions: formattedQuestions,
     notes: formattedNotes,
     accountManager,
   };
@@ -380,7 +364,6 @@ export function useClientData() {
     links: data?.links ?? [],
     documents: data?.documents ?? [],
     updates: data?.updates ?? [],
-    questions: data?.questions ?? [],
     notes: data?.notes ?? [],
     accountManager: data?.accountManager ?? null,
     loading: isLoading,

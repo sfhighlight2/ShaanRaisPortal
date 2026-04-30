@@ -1,6 +1,6 @@
 import type {
   User, Client, Project, Phase, Task, Deliverable,
-  Document, Update, Question, ActivityLog, Notification, PackageTemplate,
+  Document, Update, ActivityLog, Notification, PackageTemplate,
   OnboardingPhase, OnboardingTask, ManagerTaskCompletion, Resource,
 } from "./types";
 
@@ -113,24 +113,21 @@ export const mockUpdates: Update[] = [
   { id: "up2", clientId: "c1", projectId: "p1", title: "Welcome to the portal!", body: "Your client portal is now active. Here you can track progress, complete tasks, and access all your project deliverables.", visibleToClient: true, createdBy: "u1", createdAt: "2024-03-01" },
 ];
 
-// ===== Questions =====
-export const mockQuestions: Question[] = [
-  { id: "q1", clientId: "c1", projectId: "p1", subject: "Timeline for brand assets?", message: "When can I expect the first draft of the brand positioning framework?", status: "answered", response: "The brand positioning framework is currently being finalized and will be shared with you by end of this week.", respondedBy: "u2", createdAt: "2024-03-12" },
-];
+
 
 // ===== Activity Logs =====
 export const mockActivityLogs: ActivityLog[] = [
   { id: "a1", clientId: "c1", projectId: "p1", userId: "u4", eventType: "login", eventLabel: "Client logged in", createdAt: "2024-03-15T10:30:00Z" },
   { id: "a2", clientId: "c1", projectId: "p1", userId: "u4", eventType: "task_completed", eventLabel: "Completed: Complete company intake form", createdAt: "2024-03-05T14:20:00Z" },
   { id: "a3", clientId: "c1", projectId: "p1", userId: "u4", eventType: "deliverable_viewed", eventLabel: "Viewed: Welcome Packet", createdAt: "2024-03-03T09:15:00Z" },
-  { id: "a4", clientId: "c1", projectId: "p1", userId: "u4", eventType: "question_submitted", eventLabel: "Asked: Timeline for brand assets?", createdAt: "2024-03-12T11:45:00Z" },
+
 ];
 
 // ===== Notifications =====
 export const mockNotifications: Notification[] = [
   { id: "n1", userId: "u4", title: "New deliverable available", message: "Brand Positioning Framework has been uploaded to your portal.", read: false, link: "/deliverables", createdAt: "2024-03-18T09:00:00Z" },
   { id: "n2", userId: "u4", title: "Phase update", message: "You've entered the Strategy Development phase.", read: true, link: "/dashboard", createdAt: "2024-03-10T08:00:00Z" },
-  { id: "n3", userId: "u4", title: "Question answered", message: "Your question about brand assets has been answered.", read: false, link: "/updates", createdAt: "2024-03-13T15:00:00Z" },
+
 ];
 
 // ===== Package Templates =====

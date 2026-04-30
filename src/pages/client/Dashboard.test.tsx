@@ -90,7 +90,6 @@ function emptyState() {
     accountManager: null,
     links: [],
     documents: [],
-    questions: [],
     error: null,
     refetch: vi.fn(),
   };

@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type {
   User, Client, Project, Phase, Task, Deliverable,
-  Document, Update, Question, ActivityLog, Notification,
+  Document, Update, ActivityLog, Notification,
   PackageTemplate, TemplatePhase,
   OnboardingPhase, OnboardingTask, ManagerTaskCompletion,
   Resource,
@@ -289,52 +289,6 @@ export function useUpdatesByClient(clientId: string | undefined) {
   });
 }
 
-// ─── QUESTIONS ────────────────────────────────────────────────────────────────
-
-export function useQuestionsByClient(clientId: string | undefined) {
-  return useQuery<Question[]>({
-    queryKey: ["questions", clientId],
-    enabled: !!clientId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("questions").select("*").eq("client_id", clientId!).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []).map((r) => ({
-        id: r.id,
-        clientId: r.client_id,
-        projectId: r.project_id ?? undefined,
-        subject: r.subject,
-        message: r.message,
-        attachmentUrl: r.attachment_url ?? undefined,
-        status: r.status as Question["status"],
-        response: r.response ?? undefined,
-        respondedBy: r.responded_by ?? undefined,
-        createdAt: r.created_at,
-      }));
-    },
-  });
-}
-
-export function useAllQuestions() {
-  return useQuery<Question[]>({
-    queryKey: ["questions"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("questions").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []).map((r) => ({
-        id: r.id,
-        clientId: r.client_id,
-        projectId: r.project_id ?? undefined,
-        subject: r.subject,
-        message: r.message,
-        attachmentUrl: r.attachment_url ?? undefined,
-        status: r.status as Question["status"],
-        response: r.response ?? undefined,
-        respondedBy: r.responded_by ?? undefined,
-        createdAt: r.created_at,
-      }));
-    },
-  });
-}
 
 // ─── ACTIVITY LOGS ───────────────────────────────────────────────────────────
 

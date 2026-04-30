@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { User, Building, Mail, Phone, Globe, MessageSquare, Send } from "lucide-react";
+import { User, Building, Mail, Phone, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,10 +16,7 @@ const ClientProfile: React.FC = () => {
   const { toast } = useToast();
   const { client, project, accountManager, loading, refetch } = useClientData();
 
-  const [questionSubject, setQuestionSubject] = useState("");
-  const [questionMessage, setQuestionMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+
 
   if (loading) {
     return (
@@ -33,42 +30,7 @@ const ClientProfile: React.FC = () => {
     return null;
   }
 
-  const handleSubmitQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!questionSubject || !questionMessage || !isSupabaseConfigured) return;
-    
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.from("questions").insert({
-        client_id: client.id,
-        project_id: project?.id || null,
-        subject: questionSubject,
-        message: questionMessage,
-        status: "open",
-        created_at: new Date().toISOString()
-      });
 
-      if (error) throw error;
-
-      setSubmitted(true);
-      setQuestionSubject("");
-      setQuestionMessage("");
-      
-      // Refresh the data so it shows up in their dashboard/updates if applicable
-      refetch();
-
-      setTimeout(() => setSubmitted(false), 3000);
-    } catch (err: any) {
-      console.error("Error submitting question:", err);
-      toast({
-        title: "Error",
-        description: err.message || "Failed to submit your question. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -177,61 +139,7 @@ const ClientProfile: React.FC = () => {
         </Card>
       </div>
 
-      {/* Ask a Question */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" /> Ask a Question
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {submitted ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="py-8 text-center"
-            >
-              <div className="h-12 w-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-3">
-                <Send className="h-5 w-5 text-success" />
-              </div>
-              <p className="text-foreground font-medium">Question submitted!</p>
-              <p className="text-sm text-muted-foreground mt-1">We'll get back to you as soon as possible.</p>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleSubmitQuestion} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Subject</label>
-                <Input
-                  placeholder="What's your question about?"
-                  value={questionSubject}
-                  onChange={(e) => setQuestionSubject(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
-                <Textarea
-                  placeholder="Describe your question in detail..."
-                  rows={4}
-                  value={questionMessage}
-                  onChange={(e) => setQuestionMessage(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="gap-2" disabled={!questionSubject || !questionMessage || isSubmitting}>
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-                    Submitting...
-                  </span>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" /> Submit Question
-                  </>
-                )}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+
     </div>
   );
 };

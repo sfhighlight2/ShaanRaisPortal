@@ -23,7 +23,6 @@ export type TaskType =
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "blocked";
 
-export type QuestionStatus = "open" | "answered" | "closed";
 
 export interface User {
   id: string;
@@ -162,22 +161,6 @@ export interface Update {
   };
 }
 
-export interface Question {
-  id: string;
-  clientId: string;
-  projectId?: string;
-  subject: string;
-  message: string;
-  attachmentUrl?: string;
-  status: QuestionStatus;
-  response?: string;
-  respondedBy?: string;
-  responderProfile?: {
-    first_name: string;
-    last_name: string;
-  };
-  createdAt: string;
-}
 
 export interface ActivityLog {
   id: string;

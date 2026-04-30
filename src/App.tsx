@@ -28,7 +28,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminClients = lazy(() => import("./pages/admin/Clients"));
 const AdminClientDetail = lazy(() => import("./pages/admin/ClientDetail"));
 const AdminTemplates = lazy(() => import("./pages/admin/Templates"));
-const AdminQuestions = lazy(() => import("./pages/admin/Questions"));
+
 const AdminTeam = lazy(() => import("./pages/admin/Team"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
 const AdminOnboarding = lazy(() => import("./pages/admin/Onboarding"));
@@ -98,7 +98,7 @@ function AppRoutes() {
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/clients" element={<AdminClients />} />
               <Route path="/admin/clients/:clientId" element={<AdminClientDetail />} />
-              <Route path="/admin/questions" element={<AdminQuestions />} />
+
               {user?.role === "admin" && (
                 <Route path="/admin/team" element={<AdminTeam />} />
               )}
