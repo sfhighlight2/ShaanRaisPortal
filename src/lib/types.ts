@@ -46,6 +46,7 @@ export interface Client {
   accountManagerId: string;
   googleDriveUrl?: string;
   airtableUrl?: string;
+  dealUrl?: string;
   notes?: string;
   createdAt: string;
 }

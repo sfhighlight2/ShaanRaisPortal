@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { edgeFetch } from "@/lib/edgeFetch";
@@ -145,6 +146,7 @@ interface ClientData {
   status: ClientStatus;
   googleDriveUrl?: string;
   airtableUrl?: string;
+  dealUrl?: string;
   manager?: { id: string; firstName: string; lastName: string } | null;
   package_template_id?: string;
   userId?: string | null;
@@ -178,7 +180,7 @@ const AdminClientDetail: React.FC = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState<{
     companyName: string; contactName: string; email: string; phone: string;
-    status: ClientStatus; driveUrl: string; airtableUrl: string; managerId: string;
+    status: ClientStatus; driveUrl: string; airtableUrl: string; dealUrl: string; managerId: string;
     packageTemplateId: string;
   } | null>(null);
   const [managers, setManagers] = useState<{id: string, name: string}[]>([]);
@@ -284,6 +286,7 @@ const AdminClientDetail: React.FC = () => {
         status: c.status as ClientStatus,
         googleDriveUrl: c.google_drive_url ?? undefined,
         airtableUrl: c.airtable_url ?? undefined,
+        dealUrl: c.deal_url ?? undefined,
         manager: managerRaw ? { id: managerRaw.id, firstName: managerRaw.first_name, lastName: managerRaw.last_name } : null,
         package_template_id: c.package_template_id ?? undefined,
         userId: c.user_id ?? null,
@@ -382,6 +385,7 @@ const AdminClientDetail: React.FC = () => {
         status: editForm.status,
         google_drive_url: editForm.driveUrl || null,
         airtable_url: editForm.airtableUrl || null,
+        deal_url: editForm.dealUrl || null,
         account_manager_id: editForm.managerId === "unassigned" ? null : editForm.managerId,
         package_template_id: packageTemplateId,
       }).eq("id", clientId);
@@ -421,6 +425,7 @@ const AdminClientDetail: React.FC = () => {
       status: client.status,
       driveUrl: client.googleDriveUrl || "",
       airtableUrl: client.airtableUrl || "",
+      dealUrl: client.dealUrl || "",
       managerId: client.manager?.id || "unassigned",
       packageTemplateId: client.package_template_id || "unassigned",
     });
@@ -1052,11 +1057,11 @@ const AdminClientDetail: React.FC = () => {
       )}
 
       {/* Edit Client Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
+      <Sheet open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>Edit Client</SheetTitle></SheetHeader>
           {editForm && (
-            <div className="space-y-3 py-2">
+            <div className="space-y-3 py-2 mt-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Company Name</label>
                 <Input value={editForm.companyName} onChange={e => setEditForm({ ...editForm, companyName: e.target.value })} />
@@ -1080,6 +1085,7 @@ const AdminClientDetail: React.FC = () => {
               </div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Google Drive URL</label><Input value={editForm.driveUrl} onChange={e => setEditForm(f => f ? ({ ...f, driveUrl: e.target.value }) : null)} /></div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Airtable URL</label><Input value={editForm.airtableUrl} onChange={e => setEditForm(f => f ? ({ ...f, airtableUrl: e.target.value }) : null)} /></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Deal URL</label><Input value={editForm.dealUrl} onChange={e => setEditForm(f => f ? ({ ...f, dealUrl: e.target.value }) : null)} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><label className="text-sm font-medium">Business Consultant</label>
                   <Select value={editForm.managerId} onValueChange={v => setEditForm(f => f ? ({ ...f, managerId: v }) : null)}>
@@ -1102,12 +1108,12 @@ const AdminClientDetail: React.FC = () => {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
             <Button onClick={handleEditClient} disabled={savingClient}>{savingClient ? "Saving..." : "Save Changes"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Create Portal Login Dialog */}
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>

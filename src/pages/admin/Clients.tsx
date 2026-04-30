@@ -12,6 +12,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from "@/components/ui/sheet";
+import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -70,7 +73,7 @@ const UNASSIGNED = "__unassigned__";
 
 const emptyForm = {
   company_name: "", primary_contact_name: "", primary_contact_email: "",
-  phone: "", google_drive_url: "", airtable_url: "", status: "lead" as ClientStatus,
+  phone: "", google_drive_url: "", airtable_url: "", deal_url: "", status: "lead" as ClientStatus,
   account_manager_id: UNASSIGNED, package_template_id: UNASSIGNED,
 };
 
@@ -135,6 +138,14 @@ const ClientFormFields: React.FC<ClientFormProps> = ({ form, onChange, managers,
           value={form.airtable_url}
           onChange={e => onChange({ airtable_url: e.target.value })}
           placeholder="https://airtable.com/..."
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Deal URL</label>
+        <Input
+          value={form.deal_url}
+          onChange={e => onChange({ deal_url: e.target.value })}
+          placeholder="https://..."
         />
       </div>
       <div className="space-y-1.5">
@@ -255,7 +266,7 @@ const AdminClients: React.FC = () => {
     setForm({
       company_name: c.company_name, primary_contact_name: c.primary_contact_name,
       primary_contact_email: c.primary_contact_email, phone: c.phone ?? "",
-      google_drive_url: c.google_drive_url ?? "", airtable_url: c.airtable_url ?? "",
+      google_drive_url: c.google_drive_url ?? "", airtable_url: c.airtable_url ?? "", deal_url: (c as any).deal_url ?? "",
       status: c.status, account_manager_id: c.account_manager_id ?? UNASSIGNED,
       package_template_id: (c as any).package_template_id ?? UNASSIGNED,
     });
@@ -279,6 +290,7 @@ const AdminClients: React.FC = () => {
         phone: form.phone || null,
         google_drive_url: form.google_drive_url || null,
         airtable_url: form.airtable_url || null,
+        deal_url: form.deal_url || null,
         status: form.status,
         account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
         package_template_id: packageTemplateId,
@@ -326,6 +338,7 @@ const AdminClients: React.FC = () => {
         phone: form.phone || null,
         google_drive_url: form.google_drive_url || null,
         airtable_url: form.airtable_url || null,
+        deal_url: form.deal_url || null,
         status: form.status,
         account_manager_id: form.account_manager_id === UNASSIGNED ? null : (form.account_manager_id || null),
         package_template_id: packageTemplateId,
@@ -645,32 +658,36 @@ const AdminClients: React.FC = () => {
       )}
 
       {/* Add Client Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Add New Client</DialogTitle></DialogHeader>
-          <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
-          <DialogFooter>
+      <Sheet open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>Add New Client</SheetTitle></SheetHeader>
+          <div className="mt-4">
+            <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
+          </div>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={submitting}>
               {submitting ? "Creating…" : "Create Client"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Client Dialog */}
-      <Dialog open={!!editClient} onOpenChange={v => { if (!v) setEditClient(null); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
-          <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
-          <DialogFooter>
+      <Sheet open={!!editClient} onOpenChange={v => { if (!v) setEditClient(null); }}>
+        <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>Edit Client</SheetTitle></SheetHeader>
+          <div className="mt-4">
+            <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
+          </div>
+          <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setEditClient(null)}>Cancel</Button>
             <Button onClick={handleUpdate} disabled={submitting}>
               {submitting ? "Saving…" : "Save Changes"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete Client Dialog */}
       <AlertDialog open={!!deleteClient} onOpenChange={v => { if (!v) setDeleteClient(null); }}>
