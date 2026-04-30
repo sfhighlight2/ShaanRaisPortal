@@ -415,11 +415,11 @@ const AdminClients: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-heading font-semibold text-foreground">Clients</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage all client accounts.</p>
+          <h1 className="text-2xl font-heading font-semibold text-foreground">Companies</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage all company accounts.</p>
         </div>
         <Button className="gap-2" onClick={openAdd}>
-          <Plus className="h-4 w-4" /> Add Client
+          <Plus className="h-4 w-4" /> Add Company
         </Button>
       </div>
 
@@ -428,7 +428,7 @@ const AdminClients: React.FC = () => {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search clients..."
+            placeholder="Search companies..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="pl-9 h-9"
@@ -466,13 +466,13 @@ const AdminClients: React.FC = () => {
             <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : filteredClients.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              {searchQuery ? "No clients match your search." : "No clients yet — add one to get started."}
+              {searchQuery ? "No companies match your search." : "No companies yet — add one to get started."}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Client</TableHead>
+                  <TableHead className="pl-6">Company</TableHead>
                   <TableHead>Package</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Phase</TableHead>
@@ -594,7 +594,7 @@ const AdminClients: React.FC = () => {
                     <div className="p-2 space-y-2 min-h-[120px]">
                       {colClients.length === 0 && (
                         <div className="py-6 text-center text-xs text-muted-foreground">
-                          Drop clients here
+                          Drop companies here
                         </div>
                       )}
                       {colClients.map(client => (
@@ -657,26 +657,26 @@ const AdminClients: React.FC = () => {
         </div>
       )}
 
-      {/* Add Client Dialog */}
+      {/* Add Company Dialog */}
       <Sheet open={showAddDialog} onOpenChange={open => { if (!open) setShowAddDialog(false); }}>
         <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
-          <SheetHeader><SheetTitle>Add New Client</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle>Add New Company</SheetTitle></SheetHeader>
           <div className="mt-4">
             <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
           </div>
           <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={submitting}>
-              {submitting ? "Creating…" : "Create Client"}
+              {submitting ? "Creating…" : "Create Company"}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
 
-      {/* Edit Client Dialog */}
+      {/* Edit Company Dialog */}
       <Sheet open={!!editClient} onOpenChange={v => { if (!v) setEditClient(null); }}>
         <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
-          <SheetHeader><SheetTitle>Edit Client</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle>Edit Company</SheetTitle></SheetHeader>
           <div className="mt-4">
             <ClientFormFields form={form} onChange={patchForm} managers={managers} templates={templates} error={error} />
           </div>
@@ -689,11 +689,11 @@ const AdminClients: React.FC = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Delete Client Dialog */}
+      {/* Delete Company Dialog */}
       <AlertDialog open={!!deleteClient} onOpenChange={v => { if (!v) setDeleteClient(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Company?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete {deleteClient?.company_name} and all of their data. This cannot be undone.
             </AlertDialogDescription>

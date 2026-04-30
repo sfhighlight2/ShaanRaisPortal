@@ -197,11 +197,11 @@ const AdminUsers: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-heading font-semibold text-foreground">Portal Users</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage client portal logins and accesses.</p>
+          <h1 className="text-2xl font-heading font-semibold text-foreground">Clients</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage client logins and accesses.</p>
         </div>
         <Button className="gap-2" onClick={openAdd}>
-          <UserPlus className="h-4 w-4" /> Add Portal User
+          <UserPlus className="h-4 w-4" /> Add Client
         </Button>
       </div>
 
@@ -209,7 +209,7 @@ const AdminUsers: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4">
           <p className="text-2xl font-semibold text-foreground">{users.length}</p>
-          <p className="text-xs text-muted-foreground">Portal Users</p>
+          <p className="text-xs text-muted-foreground">Clients</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-2xl font-semibold text-foreground">{users.filter(u => u.status === "active").length}</p>
@@ -217,20 +217,20 @@ const AdminUsers: React.FC = () => {
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-2xl font-semibold text-foreground">{availableClients.length}</p>
-          <p className="text-xs text-muted-foreground">Clients Without Access</p>
+          <p className="text-xs text-muted-foreground">Companies Without Access</p>
         </CardContent></Card>
       </div>
 
       {/* Users Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium">All Portal Users</CardTitle>
+          <CardTitle className="text-base font-medium">All Clients</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : users.length === 0 ? (
-             <div className="p-8 text-center text-sm text-muted-foreground">No portal users found. Create one to get started.</div>
+             <div className="p-8 text-center text-sm text-muted-foreground">No clients found. Create one to get started.</div>
           ) : (
             <Table>
               <TableHeader>
@@ -306,20 +306,20 @@ const AdminUsers: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Add Portal User Dialog */}
+      {/* Add Client Dialog */}
       <Sheet open={showAddDialog} onOpenChange={setShowAddDialog}>
         <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
           <SheetHeader>
-            <SheetTitle>Add Portal User</SheetTitle>
+            <SheetTitle>Add Client</SheetTitle>
           </SheetHeader>
           <div className="space-y-3 py-2 mt-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Assign To Client *</label>
+              <label className="text-sm font-medium">Assign To Company *</label>
               <Select value={form.client_id} onValueChange={v => setForm(f => ({ ...f, client_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select a client..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select a company..." /></SelectTrigger>
                 <SelectContent>
                   {availableClients.length === 0 ? (
-                    <SelectItem value="none" disabled>No clients available</SelectItem>
+                    <SelectItem value="none" disabled>No companies available</SelectItem>
                   ) : (
                     availableClients.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
@@ -357,17 +357,17 @@ const AdminUsers: React.FC = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Edit User Dialog */}
+      {/* Edit Client Dialog */}
       <Sheet open={!!editUser} onOpenChange={v => { if (!v) setEditUser(null); }}>
         <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full">
           <SheetHeader>
-            <SheetTitle>Edit Portal User</SheetTitle>
+            <SheetTitle>Edit Client</SheetTitle>
           </SheetHeader>
           <div className="space-y-3 py-2 mt-4">
              <div className="space-y-1.5">
-              <label className="text-sm font-medium">Assigned Client</label>
+              <label className="text-sm font-medium">Assigned Company</label>
               <Select value={form.client_id} onValueChange={v => setForm(f => ({ ...f, client_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select a client..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select a company..." /></SelectTrigger>
                 <SelectContent>
                   {clients.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
@@ -402,10 +402,10 @@ const AdminUsers: React.FC = () => {
       <AlertDialog open={!!deleteUser} onOpenChange={v => { if (!v) { setDeleteUser(null); setDeleteError(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete portal user?</AlertDialogTitle>
+            <AlertDialogTitle>Delete client?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete {deleteUser?.first_name} {deleteUser?.last_name}'s account and cannot be undone.
-              The associated client will lose portal access until a new user is created.
+              The associated company will lose portal access until a new client is created.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
