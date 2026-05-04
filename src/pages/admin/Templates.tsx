@@ -596,10 +596,11 @@ const AdminTemplates: React.FC = () => {
 
     // Persist
     try {
-      await adminAction({
-        action: "reorder_tasks",
-        tasks: reordered.map((t: any, i: number) => ({ id: t.id, sort_order: i + 1 })),
-      });
+      await Promise.all(
+        reordered.map((t: any, i: number) => 
+          supabase.from("template_tasks").update({ sort_order: i + 1 }).eq("id", t.id)
+        )
+      );
     } catch (err) {
       console.error("Reorder failed:", err);
       loadTemplates(); // revert on failure
@@ -624,10 +625,11 @@ const AdminTemplates: React.FC = () => {
 
     // Persist
     try {
-      await adminAction({
-        action: "reorder_phases",
-        phases: reordered.map((p: any, i: number) => ({ id: p.id, sort_order: i + 1 })),
-      });
+      await Promise.all(
+        reordered.map((p: any, i: number) => 
+          supabase.from("template_phases").update({ sort_order: i + 1 }).eq("id", p.id)
+        )
+      );
     } catch (err) {
       console.error("Phase reorder failed:", err);
       loadTemplates();
@@ -667,10 +669,11 @@ const AdminTemplates: React.FC = () => {
 
     // Persist
     try {
-      await adminAction({
-        action: "reorder_deliverables",
-        deliverables: reordered.map((d: any, i: number) => ({ id: d.id, sort_order: i + 1 })),
-      });
+      await Promise.all(
+        reordered.map((d: any, i: number) => 
+          supabase.from("template_deliverables").update({ sort_order: i + 1 }).eq("id", d.id)
+        )
+      );
     } catch (err) {
       console.error("Deliverable reorder failed:", err);
       loadTemplates();
