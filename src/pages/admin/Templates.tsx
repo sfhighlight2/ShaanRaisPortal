@@ -272,7 +272,29 @@ const AdminTemplates: React.FC = () => {
         .order("created_at", { ascending: false });
       
       if (err) throw err;
-      setTemplates((data || []) as PackageTemplate[]);
+      
+      // Sort all nested relationships by sort_order before setting state
+      const sortedData = (data || []).map((template: any) => {
+        if (template.phases) {
+          template.phases.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+          template.phases.forEach((phase: any) => {
+            if (phase.tasks) {
+              phase.tasks.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+              phase.tasks.forEach((task: any) => {
+                if (task.subtasks) {
+                  task.subtasks.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+                }
+              });
+            }
+            if (phase.deliverables) {
+              phase.deliverables.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+            }
+          });
+        }
+        return template;
+      });
+
+      setTemplates(sortedData as PackageTemplate[]);
     } catch (err) {
       console.error("Error loading templates:", err);
     } finally {
