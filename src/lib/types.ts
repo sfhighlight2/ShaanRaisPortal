@@ -19,7 +19,8 @@ export type TaskType =
   | "upload"
   | "approval"
   | "scheduling"
-  | "review";
+  | "review"
+  | "general";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "blocked";
 
