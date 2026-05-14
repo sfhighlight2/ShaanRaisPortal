@@ -1373,7 +1373,6 @@ const AdminClientDetail: React.FC = () => {
           <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Notes</TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5"><Activity className="h-3.5 w-3.5" /> Activity</TabsTrigger>
           <TabsTrigger value="dates" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Important Dates</TabsTrigger>
-          <TabsTrigger value="questions" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Questions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -1998,26 +1997,6 @@ const AdminClientDetail: React.FC = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="questions" className="mt-6">
-          <Card>
-            <CardContent className="p-4">
-              {questions.length === 0 ? <p className="text-sm text-muted-foreground py-4">No questions.</p> : (
-                <div className="space-y-3">
-                  {questions.map(q => (
-                    <div key={q.id} className="p-3 rounded-lg border">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium">{q.subject}</p>
-                        <Badge className={`text-[10px] ${q.status === "open" ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>{q.status}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{q.message}</p>
-                      {q.response && <p className="text-sm mt-2 p-2 bg-muted rounded">Response: {q.response}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Important Date Dialog */}
@@ -2031,7 +2010,12 @@ const AdminClientDetail: React.FC = () => {
             </div>
             <div>
               <Label className="text-sm font-medium">Date</Label>
-              <Input className="mt-1" type="date" value={dateForm.date} onChange={e => setDateForm(f => ({ ...f, date: e.target.value }))} />
+              <input
+                type="date"
+                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={dateForm.date}
+                onChange={e => setDateForm(f => ({ ...f, date: e.target.value }))}
+              />
             </div>
             <div>
               <Label className="text-sm font-medium">Description (optional)</Label>
