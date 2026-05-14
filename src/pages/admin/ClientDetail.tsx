@@ -6,7 +6,7 @@ import {
   Edit, Trash2, Plus, GripVertical, File, Link2, Eye, EyeOff, Users,
   Globe, FolderOpen, Video, Table2, Palette, Upload, X,
   Instagram, Twitter, Linkedin, Youtube, Facebook, Hash, StickyNote, Send,
-  UserPlus, KeyRound, Search, Filter
+  UserPlus, KeyRound, Search, Filter, CalendarDays, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -167,6 +167,7 @@ interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
 interface DocumentRow { id: string; title: string; documentType: string; fileUrl?: string; visibleToClient: boolean; uploadedAt: string; }
 interface LinkRow { id: string; title: string; url: string; linkType: LinkType; description?: string; visibleToClient: boolean; createdAt: string; }
 interface NoteRow { id: string; content: string; createdBy?: string; authorName?: string; visibleToClient: boolean; createdAt: string; updatedAt: string; }
+interface ImportantDate { id: string; title: string; date: string; description?: string; visibleToClient: boolean; createdAt: string; }
 
 const AdminClientDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -241,6 +242,15 @@ const AdminClientDetail: React.FC = () => {
   });
   const [tasksViewMode, setTasksViewMode] = useState<"list" | "kanban">("list");
   const [activeDragTask, setActiveDragTask] = useState<any>(null);
+
+  // Important Dates state
+  const [importantDates, setImportantDates] = useState<ImportantDate[]>([]);
+  const [datesViewMode, setDatesViewMode] = useState<"list" | "calendar">("list");
+  const [showDateDialog, setShowDateDialog] = useState(false);
+  const [editDate, setEditDate] = useState<ImportantDate | null>(null);
+  const [dateForm, setDateForm] = useState({ title: "", date: "", description: "", visibleToClient: true });
+  const [savingDate, setSavingDate] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   const [client, setClient] = useState<ClientData | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -370,6 +380,52 @@ const AdminClientDetail: React.FC = () => {
   }, [clientId, navigate]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ── Important Dates CRUD ─────────────────────────────────────────────────
+  const loadImportantDates = useCallback(async () => {
+    if (!clientId) return;
+    const { data } = await supabase.from("client_important_dates").select("*").eq("client_id", clientId).order("date", { ascending: true });
+    setImportantDates((data ?? []).map((d: any) => ({
+      id: d.id, title: d.title, date: d.date, description: d.description ?? undefined,
+      visibleToClient: d.visible_to_client, createdAt: d.created_at,
+    })));
+  }, [clientId]);
+
+  useEffect(() => { loadImportantDates(); }, [loadImportantDates]);
+
+  const openDateDialog = (d?: ImportantDate) => {
+    if (d) {
+      setEditDate(d);
+      setDateForm({ title: d.title, date: d.date, description: d.description ?? "", visibleToClient: d.visibleToClient });
+    } else {
+      setEditDate(null);
+      setDateForm({ title: "", date: "", description: "", visibleToClient: true });
+    }
+    setShowDateDialog(true);
+  };
+
+  const saveDate = async () => {
+    if (!dateForm.title || !dateForm.date || !clientId) return;
+    setSavingDate(true);
+    try {
+      const payload = { title: dateForm.title, date: dateForm.date, description: dateForm.description || null, visible_to_client: dateForm.visibleToClient };
+      if (editDate) {
+        await supabase.from("client_important_dates").update(payload).eq("id", editDate.id);
+      } else {
+        await supabase.from("client_important_dates").insert({ ...payload, client_id: clientId });
+      }
+      setShowDateDialog(false);
+      toast({ title: editDate ? "Date Updated" : "Date Added" });
+      loadImportantDates();
+    } finally { setSavingDate(false); }
+  };
+
+  const deleteDate = async (id: string) => {
+    if (!confirm("Delete this date?")) return;
+    await supabase.from("client_important_dates").delete().eq("id", id);
+    toast({ title: "Date Deleted" });
+    loadImportantDates();
+  };
 
   const handleEditClient = async () => {
     if (!editForm || !clientId || !client) return;
@@ -1302,6 +1358,7 @@ const AdminClientDetail: React.FC = () => {
           <TabsTrigger value="links" className="gap-1.5"><Link2 className="h-3.5 w-3.5" /> Links</TabsTrigger>
           <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Notes</TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5"><Activity className="h-3.5 w-3.5" /> Activity</TabsTrigger>
+          <TabsTrigger value="dates" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Important Dates</TabsTrigger>
           <TabsTrigger value="questions" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Questions</TabsTrigger>
         </TabsList>
 
@@ -1817,6 +1874,116 @@ const AdminClientDetail: React.FC = () => {
           </Card>
         </TabsContent>
 
+        {/* Important Dates Tab */}
+        <TabsContent value="dates" className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold">Important Dates</h3>
+            <div className="flex items-center gap-2">
+              {/* List / Calendar toggle */}
+              <div className="flex rounded-lg border border-border p-0.5 bg-muted/40 gap-0.5">
+                <button type="button" onClick={() => setDatesViewMode("list")}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${ datesViewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground" }`}>
+                  List
+                </button>
+                <button type="button" onClick={() => setDatesViewMode("calendar")}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${ datesViewMode === "calendar" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground" }`}>
+                  Calendar
+                </button>
+              </div>
+              <Button size="sm" className="gap-1.5" onClick={() => openDateDialog()}><Plus className="h-3.5 w-3.5" /> Add Date</Button>
+            </div>
+          </div>
+
+          {datesViewMode === "list" ? (
+            <Card>
+              <CardContent className="p-4">
+                {importantDates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">No important dates added yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {importantDates.map(d => {
+                      const isPast = new Date(d.date) < new Date(new Date().toDateString());
+                      return (
+                        <div key={d.id} className={`flex items-start gap-3 p-3 rounded-lg border group ${ isPast ? "opacity-60" : "border-primary/20 bg-primary/5" }`}>
+                          <div className="shrink-0 text-center">
+                            <div className={`h-10 w-10 rounded-lg flex flex-col items-center justify-center text-xs font-bold ${ isPast ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground" }`}>
+                              <span>{new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}</span>
+                              <span className="text-base leading-none">{new Date(d.date + "T00:00:00").getDate()}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{d.title}</p>
+                            {d.description && <p className="text-xs text-muted-foreground mt-0.5">{d.description}</p>}
+                            {!d.visibleToClient && <span className="inline-flex items-center text-[10px] text-muted-foreground gap-1 mt-1"><EyeOff className="h-3 w-3" />Admin only</span>}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDateDialog(d)}><Edit className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDate(d.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            /* Calendar view */
+            <Card>
+              <CardContent className="p-4">
+                {(() => {
+                  const year = calendarMonth.getFullYear();
+                  const month = calendarMonth.getMonth();
+                  const firstDay = new Date(year, month, 1).getDay();
+                  const daysInMonth = new Date(year, month + 1, 0).getDate();
+                  const dateMap = new Map<number, ImportantDate[]>();
+                  importantDates.forEach(d => {
+                    const dt = new Date(d.date + "T00:00:00");
+                    if (dt.getFullYear() === year && dt.getMonth() === month) {
+                      const day = dt.getDate();
+                      if (!dateMap.has(day)) dateMap.set(day, []);
+                      dateMap.get(day)!.push(d);
+                    }
+                  });
+                  const cells: (number | null)[] = [
+                    ...Array(firstDay).fill(null),
+                    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+                  ];
+                  const today = new Date();
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <button onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))} className="p-1 rounded hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
+                        <span className="text-sm font-semibold">{calendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+                        <button onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="p-1 rounded hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => <div key={d} className="text-[10px] font-medium text-muted-foreground py-1">{d}</div>)}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {cells.map((day, idx) => {
+                          if (!day) return <div key={idx} />;
+                          const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+                          const events = dateMap.get(day) ?? [];
+                          return (
+                            <div key={idx} className={`relative min-h-[52px] p-1 rounded-lg border text-xs ${ isToday ? "border-primary bg-primary/5" : "border-border" }`}>
+                              <span className={`block text-right text-[11px] font-medium mb-1 ${ isToday ? "text-primary" : "text-foreground" }`}>{day}</span>
+                              {events.slice(0, 2).map(e => (
+                                <div key={e.id} title={e.title} className="truncate text-[10px] bg-primary text-primary-foreground rounded px-1 py-0.5 mb-0.5 cursor-pointer" onClick={() => openDateDialog(e)}>{e.title}</div>
+                              ))}
+                              {events.length > 2 && <div className="text-[10px] text-muted-foreground">+{events.length - 2} more</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
         <TabsContent value="questions" className="mt-6">
           <Card>
             <CardContent className="p-4">
@@ -1839,7 +2006,37 @@ const AdminClientDetail: React.FC = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Important Date Dialog */}
+      <Sheet open={showDateDialog} onOpenChange={setShowDateDialog}>
+        <SheetContent className="sm:max-w-md overflow-y-auto w-full">
+          <SheetHeader><SheetTitle>{editDate ? "Edit Date" : "Add Important Date"}</SheetTitle></SheetHeader>
+          <div className="space-y-4 py-2 mt-4">
+            <div>
+              <Label className="text-sm font-medium">Title</Label>
+              <Input className="mt-1" value={dateForm.title} onChange={e => setDateForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Contract Renewal" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Date</Label>
+              <Input className="mt-1" type="date" value={dateForm.date} onChange={e => setDateForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Description (optional)</Label>
+              <Input className="mt-1" value={dateForm.description} onChange={e => setDateForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief note..." />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="date-visible" checked={dateForm.visibleToClient} onCheckedChange={c => setDateForm(f => ({ ...f, visibleToClient: !!c }))} />
+              <Label htmlFor="date-visible" className="text-sm">Visible to client</Label>
+            </div>
+          </div>
+          <SheetFooter className="mt-6 flex gap-2">
+            <Button variant="outline" onClick={() => setShowDateDialog(false)}>Cancel</Button>
+            <Button onClick={saveDate} disabled={savingDate || !dateForm.title || !dateForm.date}>{savingDate ? "Saving..." : editDate ? "Update" : "Add Date"}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
       {/* Document Dialog */}
+
       <Sheet open={showDocDialog} onOpenChange={(open) => { setShowDocDialog(open); if (!open) { setSelectedFile(null); setUploadProgress(0); } }}>
         <SheetContent className="sm:max-w-md md:max-w-lg overflow-y-auto w-full flex flex-col h-full">
           <SheetHeader className="shrink-0"><SheetTitle>{editDoc ? "Edit Document" : "Add Document"}</SheetTitle></SheetHeader>

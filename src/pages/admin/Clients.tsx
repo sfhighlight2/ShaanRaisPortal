@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, MoreHorizontal, Plus, Eye, Trash2, LayoutGrid, List, Download, Upload, Layers, RefreshCw, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { exportCompaniesCSV, parseCompaniesCSV, type ParsedCompanyRow } from "@/lib/bulkOps";
+import { exportCompaniesCSV, parseCompaniesCSV, parseTasksCSV, exportTasksCSV, type ParsedCompanyRow, type ParsedTaskRow } from "@/lib/bulkOps";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -238,6 +238,13 @@ const AdminClients: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
+  // ── Task import state
+  const [showTaskImportDialog, setShowTaskImportDialog] = useState(false);
+  const [taskImportRows, setTaskImportRows] = useState<ParsedTaskRow[]>([]);
+  const [taskImportErrors, setTaskImportErrors] = useState<string[]>([]);
+  const [taskImporting, setTaskImporting] = useState(false);
+  const taskImportFileRef = useRef<HTMLInputElement>(null);
+
   const patchForm = (patch: Partial<typeof emptyForm>) =>
     setForm(f => ({ ...f, ...patch }));
 
@@ -268,7 +275,7 @@ const AdminClients: React.FC = () => {
   const handleImportSubmit = async () => {
     if (importRows.length === 0) return;
     setImporting(true);
-    let created = 0, updated = 0, failed = 0;
+    let created = 0, updated = 0, deleted = 0, failed = 0;
     try {
       const { data: existing } = await supabase.from("clients").select("id, company_name");
       const existingMap = new Map<string, string>(
@@ -277,6 +284,16 @@ const AdminClients: React.FC = () => {
       for (const row of importRows) {
         try {
           const existingId = existingMap.get(row.company_name.toLowerCase());
+          const action = row.action ?? "update";
+
+          if (action === "delete") {
+            if (existingId) {
+              await supabase.from("clients").delete().eq("id", existingId);
+              deleted++;
+            }
+            continue;
+          }
+
           const payload = {
             primary_contact_name: row.primary_contact_name,
             primary_contact_email: row.primary_contact_email ?? null,
@@ -286,12 +303,22 @@ const AdminClients: React.FC = () => {
             airtable_url: row.airtable_url ?? null,
             deal_url: row.deal_url ?? null,
           };
-          if (existingId) {
-            await supabase.from("clients").update(payload).eq("id", existingId);
-            updated++;
+
+          if (action === "create") {
+            if (!existingId) {
+              await supabase.from("clients").insert({ ...payload, company_name: row.company_name });
+              created++;
+            }
+            // action=create but already exists — skip silently
           } else {
-            await supabase.from("clients").insert({ ...payload, company_name: row.company_name });
-            created++;
+            // action=update (default)
+            if (existingId) {
+              await supabase.from("clients").update(payload).eq("id", existingId);
+              updated++;
+            } else {
+              await supabase.from("clients").insert({ ...payload, company_name: row.company_name });
+              created++;
+            }
           }
         } catch { failed++; }
       }
@@ -303,7 +330,114 @@ const AdminClients: React.FC = () => {
       loadClients();
       toast({
         title: "Import Complete",
-        description: `${created} created, ${updated} updated${failed ? `, ${failed} failed` : ""}.`,
+        description: [
+          created && `${created} created`,
+          updated && `${updated} updated`,
+          deleted && `${deleted} deleted`,
+          failed && `${failed} failed`,
+        ].filter(Boolean).join(", ") + ".",
+        variant: failed > 0 ? "destructive" : undefined,
+      });
+    }
+  };
+
+  // ── Task CSV import
+  const handleTaskImportFile = async (file: File) => {
+    const text = await file.text();
+    const { rows, errors } = parseTasksCSV(text);
+    setTaskImportRows(rows);
+    setTaskImportErrors(errors);
+  };
+
+  const handleTaskImportSubmit = async () => {
+    if (taskImportRows.length === 0) return;
+    setTaskImporting(true);
+    let created = 0, deleted = 0, failed = 0;
+    try {
+      // Fetch all clients once
+      const { data: allClients } = await supabase.from("clients").select("id, company_name");
+      const clientMap = new Map<string, string>((allClients ?? []).map((c: any) => [c.company_name.toLowerCase(), c.id]));
+
+      // Group rows by company+phase for efficiency
+      for (const row of taskImportRows) {
+        try {
+          const clientId = clientMap.get(row.company_name.toLowerCase());
+          if (!clientId) { failed++; continue; }
+
+          // Get or create main project
+          let { data: proj } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).maybeSingle();
+          if (!proj) { failed++; continue; }
+
+          // Get or create phase
+          let { data: phase } = await supabase.from("phases").select("id").eq("project_id", proj.id).ilike("name", row.phase_name).maybeSingle();
+          if (!phase) {
+            // Auto-create phase
+            const { data: newPhase } = await supabase.from("phases").insert({
+              project_id: proj.id, name: row.phase_name,
+              status: "upcoming", sort_order: 99,
+            }).select("id").single();
+            phase = newPhase;
+          }
+          if (!phase) { failed++; continue; }
+
+          if (row.action === "delete") {
+            if (row.row_type === "task") {
+              await supabase.from("tasks").delete().eq("phase_id", phase.id).ilike("title", row.title);
+            } else if (row.row_type === "deliverable") {
+              await supabase.from("deliverables").delete().eq("phase_id", phase.id).ilike("title", row.title);
+            } else if (row.row_type === "subtask" && row.parent_task_title) {
+              const { data: parentTask } = await supabase.from("tasks").select("id").eq("phase_id", phase.id).ilike("title", row.parent_task_title).maybeSingle();
+              if (parentTask) await supabase.from("task_subtasks").delete().eq("task_id", parentTask.id).ilike("title", row.title);
+            }
+            deleted++;
+          } else {
+            // action === "create"
+            if (row.row_type === "task") {
+              const { data: countRes } = await supabase.from("tasks").select("id", { count: "exact" }).eq("phase_id", phase.id);
+              const sortOrder = (countRes?.length ?? 0) + 1;
+              await supabase.from("tasks").insert({
+                phase_id: phase.id, title: row.title,
+                task_type: row.task_type ?? "checklist",
+                visible_to_client: row.visible_to_client ?? true,
+                status: "pending", sort_order: sortOrder,
+              });
+              created++;
+            } else if (row.row_type === "deliverable") {
+              const { data: countRes } = await supabase.from("deliverables").select("id", { count: "exact" }).eq("phase_id", phase.id);
+              const sortOrder = (countRes?.length ?? 0) + 1;
+              await supabase.from("deliverables").insert({
+                phase_id: phase.id, title: row.title,
+                visible_to_client: row.visible_to_client ?? true,
+                status: "pending", sort_order: sortOrder,
+              });
+              created++;
+            } else if (row.row_type === "subtask" && row.parent_task_title) {
+              const { data: parentTask } = await supabase.from("tasks").select("id").eq("phase_id", phase.id).ilike("title", row.parent_task_title).maybeSingle();
+              if (parentTask) {
+                const { data: countRes } = await supabase.from("task_subtasks").select("id", { count: "exact" }).eq("task_id", parentTask.id);
+                await supabase.from("task_subtasks").insert({
+                  task_id: parentTask.id, title: row.title,
+                  completed: false, sort_order: (countRes?.length ?? 0),
+                });
+                created++;
+              } else failed++;
+            }
+          }
+        } catch { failed++; }
+      }
+    } finally {
+      setTaskImporting(false);
+      setShowTaskImportDialog(false);
+      setTaskImportRows([]);
+      setTaskImportErrors([]);
+      toast({
+        title: "Task Import Complete",
+        description: [
+          created && `${created} created`,
+          deleted && `${deleted} deleted`,
+          failed && `${failed} failed`,
+        ].filter(Boolean).join(", ") + ".",
+        variant: failed > 0 ? "destructive" : undefined,
       });
     }
   };
@@ -602,6 +736,10 @@ const AdminClients: React.FC = () => {
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { setImportRows([]); setImportErrors([]); setShowImportDialog(true); }}>
             <Upload className="h-4 w-4" /> Import CSV
           </Button>
+          {/* Import Tasks */}
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => { setTaskImportRows([]); setTaskImportErrors([]); setShowTaskImportDialog(true); }}>
+            <Upload className="h-4 w-4" /> Import Tasks
+          </Button>
           {/* Bulk actions — only when rows selected */}
           {selectedIds.size > 0 && (
             <DropdownMenu>
@@ -886,7 +1024,13 @@ const AdminClients: React.FC = () => {
                         <tr key={i} className="border-t border-border">
                           <td className="px-3 py-1.5">{r.company_name}</td>
                           <td className="px-3 py-1.5 text-muted-foreground">{r.primary_contact_name}</td>
-                          <td className="px-3 py-1.5 text-muted-foreground">{r.status ?? "lead"}</td>
+                          <td className="px-3 py-1.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              r.action === "delete" ? "bg-destructive/10 text-destructive" :
+                              r.action === "create" ? "bg-success/10 text-success" :
+                              "bg-muted text-muted-foreground"
+                            }`}>{r.action ?? "update"}</span>
+                          </td>
                         </tr>
                       ))}
                       {importRows.length > 10 && (
@@ -904,6 +1048,86 @@ const AdminClients: React.FC = () => {
             <Button variant="outline" onClick={() => { setShowImportDialog(false); setImportRows([]); setImportErrors([]); }}>Cancel</Button>
             <Button onClick={handleImportSubmit} disabled={importRows.length === 0 || importing}>
               {importing ? "Importing…" : `Import ${importRows.length} ${importRows.length === 1 ? "Company" : "Companies"}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── TASK IMPORT DIALOG ── */}
+      <Dialog open={showTaskImportDialog} onOpenChange={v => { if (!v) { setShowTaskImportDialog(false); setTaskImportRows([]); setTaskImportErrors([]); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Import Tasks / Subtasks / Deliverables</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Required columns: <code className="bg-muted px-1 rounded">company_name, phase_name, row_type, title</code>.<br />
+              <code className="bg-muted px-1 rounded">row_type</code>: <strong>task</strong> | <strong>subtask</strong> | <strong>deliverable</strong>. Subtasks need <code className="bg-muted px-1 rounded">parent_task_title</code>.<br />
+              Optional: <code className="bg-muted px-1 rounded">task_type, visible_to_client, action</code> (create/delete).<br />
+              Phases not found will be <strong>auto-created</strong>.
+            </p>
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => taskImportFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleTaskImportFile(f); }}
+            >
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">Drop a CSV file here or click to browse</p>
+              <input
+                ref={taskImportFileRef}
+                type="file" accept=".csv,text/csv" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleTaskImportFile(f); }}
+              />
+            </div>
+            {taskImportErrors.length > 0 && (
+              <div className="bg-destructive/10 rounded-md p-3 space-y-1">
+                {taskImportErrors.map((e, i) => <p key={i} className="text-xs text-destructive">{e}</p>)}
+              </div>
+            )}
+            {taskImportRows.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">{taskImportRows.length} row{taskImportRows.length !== 1 ? "s" : ""} ready</p>
+                <div className="border rounded-md overflow-hidden max-h-48 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">Company</th>
+                        <th className="text-left px-3 py-2 font-medium">Phase</th>
+                        <th className="text-left px-3 py-2 font-medium">Type</th>
+                        <th className="text-left px-3 py-2 font-medium">Title</th>
+                        <th className="text-left px-3 py-2 font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {taskImportRows.slice(0, 10).map((r, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.company_name}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.phase_name}</td>
+                          <td className="px-3 py-1.5">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">{r.row_type}</span>
+                          </td>
+                          <td className="px-3 py-1.5">{r.title}</td>
+                          <td className="px-3 py-1.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              r.action === "delete" ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
+                            }`}>{r.action ?? "create"}</span>
+                          </td>
+                        </tr>
+                      ))}
+                      {taskImportRows.length > 10 && (
+                        <tr className="border-t border-border">
+                          <td colSpan={5} className="px-3 py-1.5 text-muted-foreground italic">…and {taskImportRows.length - 10} more</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setShowTaskImportDialog(false); setTaskImportRows([]); setTaskImportErrors([]); }}>Cancel</Button>
+            <Button onClick={handleTaskImportSubmit} disabled={taskImportRows.length === 0 || taskImporting}>
+              {taskImporting ? "Importing…" : `Import ${taskImportRows.length} Row${taskImportRows.length !== 1 ? "s" : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>
