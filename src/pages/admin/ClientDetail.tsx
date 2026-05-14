@@ -160,7 +160,7 @@ interface Phase {
 }
 
 interface Task { id: string; title: string; taskType: string; status: string; phaseId: string; phaseName?: string; notes?: string; subtasks?: { id: string; title: string; completed: boolean; sortOrder: number }[]; }
-interface Deliverable { id: string; title: string; phaseId: string; phaseName?: string; visibleToClient: boolean; }
+interface Deliverable { id: string; title: string; phaseId: string; phaseName?: string; visibleToClient: boolean; documentId?: string; }
 interface Update { id: string; title: string; createdAt: string; }
 interface Question { id: string; subject: string; message: string; response?: string; status: string; }
 interface ActivityLog { id: string; eventLabel: string; createdAt: string; }
@@ -200,7 +200,7 @@ const AdminClientDetail: React.FC = () => {
   // Deliverable State
   const [showDelivDialog, setShowDelivDialog] = useState(false);
   const [editDeliv, setEditDeliv] = useState<Deliverable | null>(null);
-  const [delivForm, setDelivForm] = useState({ title: "", description: "", phaseId: "", visibleToClient: false });
+  const [delivForm, setDelivForm] = useState({ title: "", description: "", phaseId: "", visibleToClient: false, documentId: "" });
   const [savingDeliv, setSavingDeliv] = useState(false);
 
   // Document State
@@ -335,6 +335,7 @@ const AdminClientDetail: React.FC = () => {
           setDeliverables((deliverablesRes.data || []).map(d => ({
             id: d.id, title: d.title, phaseId: d.phase_id, visibleToClient: d.visible_to_client,
             phaseName: formattedPhases.find(p => p.id === d.phase_id)?.name,
+            documentId: d.document_id ?? undefined,
           })));
         } else {
           setPhases(formattedPhases);
@@ -571,10 +572,10 @@ const AdminClientDetail: React.FC = () => {
   const openDelivDialog = (d?: Deliverable) => {
     if (d) {
       setEditDeliv(d);
-      setDelivForm({ title: d.title, description: "", phaseId: d.phaseId, visibleToClient: d.visibleToClient });
+      setDelivForm({ title: d.title, description: "", phaseId: d.phaseId, visibleToClient: d.visibleToClient, documentId: d.documentId ?? "" });
     } else {
       setEditDeliv(null);
-      setDelivForm({ title: "", description: "", phaseId: phases[0]?.id || "", visibleToClient: false });
+      setDelivForm({ title: "", description: "", phaseId: phases[0]?.id || "", visibleToClient: false, documentId: "" });
     }
     setShowDelivDialog(true);
   };
@@ -583,17 +584,18 @@ const AdminClientDetail: React.FC = () => {
     if (!delivForm.title || !delivForm.phaseId) return;
     setSavingDeliv(true);
     try {
+      const payload: Record<string, any> = {
+        title: delivForm.title,
+        phase_id: delivForm.phaseId,
+        visible_to_client: delivForm.visibleToClient,
+        document_id: delivForm.documentId || null,
+      };
       let error;
       if (editDeliv) {
-        const { error: err } = await supabase.from("deliverables").update({
-          title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
-          // Add description to update if column exists, skipping for now
-        }).eq("id", editDeliv.id);
+        const { error: err } = await supabase.from("deliverables").update(payload).eq("id", editDeliv.id);
         error = err;
       } else {
-        const { error: err } = await supabase.from("deliverables").insert({
-          title: delivForm.title, phase_id: delivForm.phaseId, visible_to_client: delivForm.visibleToClient
-        });
+        const { error: err } = await supabase.from("deliverables").insert(payload);
         error = err;
       }
       if (!error) {
@@ -1340,7 +1342,19 @@ const AdminClientDetail: React.FC = () => {
                 <div className="w-9 h-5 bg-muted-foreground/30 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Linked Document <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Select value={delivForm.documentId || "none"} onValueChange={v => setDelivForm(f => ({ ...f, documentId: v === "none" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="No document linked" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No document</SelectItem>
+                  {documents.map(doc => <SelectItem key={doc.id} value={doc.id}>{doc.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Client will see a direct link to this document on the deliverable.</p>
+            </div>
           </div>
+
           <SheetFooter className="mt-6 flex gap-2">
             <Button variant="outline" onClick={() => setShowDelivDialog(false)}>Cancel</Button>
             <Button onClick={saveDeliv} disabled={savingDeliv}>{savingDeliv ? "Saving..." : "Save Deliverable"}</Button>

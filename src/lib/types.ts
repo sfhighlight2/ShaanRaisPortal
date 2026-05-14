@@ -104,8 +104,11 @@ export interface Deliverable {
   title: string;
   description?: string;
   fileUrl?: string;
-  status: string;
+  status: string; // 'pending' | 'approved' | 'denied'
   completedAt?: string;
+  approvedAt?: string;
+  deniedAt?: string;
+  documentId?: string;
   visibleToClient: boolean;
   uploadedBy?: string;
   uploadedAt?: string;
