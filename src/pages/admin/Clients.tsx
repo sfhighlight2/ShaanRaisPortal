@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MoreHorizontal, Plus, Eye, Trash2, LayoutGrid, List } from "lucide-react";
+import { Search, MoreHorizontal, Plus, Eye, Trash2, LayoutGrid, List, Download, Upload, Layers, RefreshCw, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { exportCompaniesCSV, parseCompaniesCSV, type ParsedCompanyRow } from "@/lib/bulkOps";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -219,8 +222,179 @@ const AdminClients: React.FC = () => {
   const [error, setError] = useState("");
   const { user } = useAuth();
 
+  // ── Bulk selection state ──────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── Bulk template state ────────────────────────────────────────────────────
+  const [showBulkTemplateDialog, setShowBulkTemplateDialog] = useState(false);
+  const [bulkTemplateId, setBulkTemplateId] = useState<string>("");
+  const [bulkTemplateMode, setBulkTemplateMode] = useState<"reset" | "append">("reset");
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // ── Import state ───────────────────────────────────────────────────────────
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importRows, setImportRows] = useState<ParsedCompanyRow[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
   const patchForm = (patch: Partial<typeof emptyForm>) =>
     setForm(f => ({ ...f, ...patch }));
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  const toggleSelectAll = () =>
+    setSelectedIds(prev =>
+      prev.size === filteredClients.length && filteredClients.length > 0
+        ? new Set()
+        : new Set(filteredClients.map(c => c.id))
+    );
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // ── CSV export ─────────────────────────────────────────────────────────────
+  const handleExportCSV = () => exportCompaniesCSV(filteredClients as unknown as Record<string, unknown>[]);
+
+  // ── CSV import ─────────────────────────────────────────────────────────────
+  const handleImportFile = async (file: File) => {
+    const text = await file.text();
+    const { rows, errors } = parseCompaniesCSV(text);
+    setImportRows(rows);
+    setImportErrors(errors);
+  };
+
+  const handleImportSubmit = async () => {
+    if (importRows.length === 0) return;
+    setImporting(true);
+    let created = 0, updated = 0, failed = 0;
+    try {
+      const { data: existing } = await supabase.from("clients").select("id, company_name");
+      const existingMap = new Map<string, string>(
+        (existing ?? []).map((c: any) => [c.company_name.toLowerCase(), c.id])
+      );
+      for (const row of importRows) {
+        try {
+          const existingId = existingMap.get(row.company_name.toLowerCase());
+          const payload = {
+            primary_contact_name: row.primary_contact_name,
+            primary_contact_email: row.primary_contact_email ?? null,
+            phone: row.phone ?? null,
+            status: row.status ?? "lead",
+            google_drive_url: row.google_drive_url ?? null,
+            airtable_url: row.airtable_url ?? null,
+            deal_url: row.deal_url ?? null,
+          };
+          if (existingId) {
+            await supabase.from("clients").update(payload).eq("id", existingId);
+            updated++;
+          } else {
+            await supabase.from("clients").insert({ ...payload, company_name: row.company_name });
+            created++;
+          }
+        } catch { failed++; }
+      }
+    } finally {
+      setImporting(false);
+      setShowImportDialog(false);
+      setImportRows([]);
+      setImportErrors([]);
+      loadClients();
+      toast({
+        title: "Import Complete",
+        description: `${created} created, ${updated} updated${failed ? `, ${failed} failed` : ""}.`,
+      });
+    }
+  };
+
+  // ── Bulk archive ───────────────────────────────────────────────────────────
+  const handleBulkArchive = async () => {
+    if (selectedIds.size === 0) return;
+    await supabase.from("clients").update({ status: "archived" }).in("id", [...selectedIds]);
+    clearSelection();
+    loadClients();
+    toast({ title: "Archived", description: `${selectedIds.size} companies archived.` });
+  };
+
+  // ── Append template to a single client (no wipe) ───────────────────────────
+  const appendTemplateToClient = async (clientId: string, templateId: string) => {
+    const { data: tpl } = await supabase
+      .from("package_templates")
+      .select(`*, phases:template_phases(*, tasks:template_tasks(*, subtasks:template_task_subtasks(*)), deliverables:template_deliverables(*))`)
+      .eq("id", templateId)
+      .single();
+    if (!tpl) return;
+
+    const { data: proj } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).maybeSingle();
+    if (!proj) return;
+
+    const { data: existingPhases } = await supabase.from("phases").select("name").eq("project_id", proj.id);
+    const existingNames = new Set((existingPhases ?? []).map((p: any) => p.name.toLowerCase()));
+    const baseOrder = (existingPhases ?? []).length;
+
+    const tplPhases: any[] = ((tpl as any).phases ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+    let added = 0;
+    for (const [idx, ph] of tplPhases.entries()) {
+      if (existingNames.has(ph.name.toLowerCase())) continue;
+      const { data: newPh } = await supabase.from("phases").insert({
+        project_id: proj.id, name: ph.name, description: ph.description ?? null,
+        estimated_timeline: ph.estimated_timeline ?? null, status: "upcoming",
+        sort_order: baseOrder + idx + 1,
+      }).select("id").single();
+      if (!newPh) continue;
+      added++;
+      const tasks: any[] = (ph.tasks ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      for (const [ti, tk] of tasks.entries()) {
+        const { data: newTk } = await supabase.from("tasks").insert({
+          phase_id: newPh.id, title: tk.title, description: tk.description ?? null,
+          task_type: tk.task_type ?? "checklist", status: "pending",
+          visible_to_client: tk.visible_to_client ?? true, sort_order: ti + 1,
+        }).select("id").single();
+        if (newTk && tk.subtasks?.length > 0) {
+          await supabase.from("subtasks").insert(
+            tk.subtasks.map((st: any, si: number) => ({
+              task_id: newTk.id, title: st.title, completed: false, sort_order: si + 1,
+            }))
+          );
+        }
+      }
+      const delivs: any[] = (ph.deliverables ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      for (const [di, dv] of delivs.entries()) {
+        await supabase.from("deliverables").insert({
+          phase_id: newPh.id, title: dv.title, description: dv.description ?? null,
+          visible_to_client: dv.visible_to_client ?? true, status: "pending", sort_order: di + 1,
+        });
+      }
+    }
+    return added;
+  };
+
+  // ── Bulk template assign / append ──────────────────────────────────────────
+  const handleBulkTemplate = async () => {
+    if (!bulkTemplateId || selectedIds.size === 0) return;
+    setBulkProcessing(true);
+    let ok = 0, fail = 0;
+    for (const clientId of selectedIds) {
+      try {
+        if (bulkTemplateMode === "reset") {
+          await edgeFetch("assign-package", { client_id: clientId, package_template_id: bulkTemplateId });
+        } else {
+          await appendTemplateToClient(clientId, bulkTemplateId);
+        }
+        ok++;
+      } catch { fail++; }
+    }
+    setBulkProcessing(false);
+    setShowBulkTemplateDialog(false);
+    setBulkTemplateId("");
+    clearSelection();
+    toast({
+      title: bulkTemplateMode === "reset" ? "Templates Reset" : "Phases Appended",
+      description: `${ok} succeeded${fail ? `, ${fail} failed` : ""}.`,
+      variant: fail > 0 ? "destructive" : undefined,
+    });
+  };
 
   const loadClients = useCallback(async () => {
     try {
@@ -406,6 +580,7 @@ const AdminClients: React.FC = () => {
     if (clientId) handleStatusChange(clientId, status);
   };
 
+  // NOTE: filteredClients must be declared before toggleSelectAll uses it
   const filteredClients = clients.filter(c =>
     (c.company_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     (c.primary_contact_name ?? "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -418,9 +593,44 @@ const AdminClients: React.FC = () => {
           <h1 className="text-2xl font-heading font-semibold text-foreground">Companies</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage all company accounts.</p>
         </div>
-        <Button className="gap-2" onClick={openAdd}>
-          <Plus className="h-4 w-4" /> Add Company
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Export CSV */}
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportCSV}>
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+          {/* Import CSV */}
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => { setImportRows([]); setImportErrors([]); setShowImportDialog(true); }}>
+            <Upload className="h-4 w-4" /> Import CSV
+          </Button>
+          {/* Bulk actions — only when rows selected */}
+          {selectedIds.size > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm" className="gap-2">
+                  <Layers className="h-4 w-4" />
+                  {selectedIds.size} selected <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setBulkTemplateMode("reset"); setBulkTemplateId(""); setShowBulkTemplateDialog(true); }}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2" /> Assign / Reset Template
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setBulkTemplateMode("append"); setBulkTemplateId(""); setShowBulkTemplateDialog(true); }}>
+                  <Plus className="h-3.5 w-3.5 mr-2" /> Append Template Phases
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-muted-foreground" onClick={handleBulkArchive}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Archive Selected
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearSelection}>Clear Selection</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Button className="gap-2" onClick={openAdd}>
+            <Plus className="h-4 w-4" /> Add Company
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar: search + view toggle */}
@@ -472,7 +682,14 @@ const AdminClients: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Company</TableHead>
+                  <TableHead className="pl-4 w-10">
+                    <Checkbox
+                      checked={selectedIds.size === filteredClients.length && filteredClients.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                  <TableHead className="pl-2">Company</TableHead>
                   <TableHead>Package</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Phase</TableHead>
@@ -484,10 +701,17 @@ const AdminClients: React.FC = () => {
                 {filteredClients.map(client => (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className={`cursor-pointer hover:bg-muted/50 ${selectedIds.has(client.id) ? "bg-primary/5" : ""}`}
                     onClick={() => navigate(`/admin/clients/${client.id}`)}
                   >
-                    <TableCell className="pl-6">
+                    <TableCell className="pl-4 w-10" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(client.id)}
+                        onCheckedChange={() => toggleSelect(client.id)}
+                        aria-label={`Select ${client.company_name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="pl-2">
                       <div>
                         <p className="font-medium text-foreground">{client.company_name}</p>
                         <p className="text-xs text-muted-foreground">{client.primary_contact_name}</p>
@@ -557,6 +781,133 @@ const AdminClients: React.FC = () => {
           )}
         </CardContent>
       </Card>}
+
+      {/* ── BULK TEMPLATE DIALOG ── */}
+      <Dialog open={showBulkTemplateDialog} onOpenChange={v => { if (!v) setShowBulkTemplateDialog(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {bulkTemplateMode === "reset" ? "Assign / Reset Template" : "Append Template Phases"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              {bulkTemplateMode === "reset"
+                ? `This will wipe and recreate project phases for ${selectedIds.size} selected ${selectedIds.size === 1 ? "company" : "companies"} using the chosen template.`
+                : `This will add any missing phases/tasks from the template to ${selectedIds.size} selected ${selectedIds.size === 1 ? "company" : "companies"} without touching existing data.`}
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Template</label>
+              <Select value={bulkTemplateId} onValueChange={setBulkTemplateId}>
+                <SelectTrigger><SelectValue placeholder="Choose a template…" /></SelectTrigger>
+                <SelectContent>
+                  {templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Mode</label>
+              <RadioGroup value={bulkTemplateMode} onValueChange={v => setBulkTemplateMode(v as "reset" | "append")} className="flex flex-col gap-2">
+                <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="reset" id="mode-reset" className="mt-0.5" />
+                  <label htmlFor="mode-reset" className="cursor-pointer">
+                    <p className="text-sm font-medium">Reset (wipe &amp; recreate)</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Removes existing project phases and rebuilds from template. Destructive.</p>
+                  </label>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="append" id="mode-append" className="mt-0.5" />
+                  <label htmlFor="mode-append" className="cursor-pointer">
+                    <p className="text-sm font-medium">Append (add missing phases)</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Only adds phases from the template that don't already exist by name. Safe.</p>
+                  </label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowBulkTemplateDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleBulkTemplate}
+              disabled={!bulkTemplateId || bulkProcessing}
+              variant={bulkTemplateMode === "reset" ? "destructive" : "default"}
+            >
+              {bulkProcessing ? "Processing…" : bulkTemplateMode === "reset" ? "Reset Templates" : "Append Phases"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CSV IMPORT DIALOG ── */}
+      <Dialog open={showImportDialog} onOpenChange={v => { if (!v) { setShowImportDialog(false); setImportRows([]); setImportErrors([]); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Import Companies from CSV</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Required columns: <code className="bg-muted px-1 rounded">company_name</code>, <code className="bg-muted px-1 rounded">primary_contact_name</code>.<br />
+              Optional: <code className="bg-muted px-1 rounded">primary_contact_email, phone, status, google_drive_url, airtable_url, deal_url</code>.<br />
+              Existing companies matched by name will be <strong>updated</strong>.
+            </p>
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => importFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
+            >
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">Drop a CSV file here or click to browse</p>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }}
+              />
+            </div>
+            {importErrors.length > 0 && (
+              <div className="bg-destructive/10 rounded-md p-3 space-y-1">
+                {importErrors.map((e, i) => <p key={i} className="text-xs text-destructive">{e}</p>)}
+              </div>
+            )}
+            {importRows.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">{importRows.length} row{importRows.length !== 1 ? "s" : ""} ready to import</p>
+                <div className="border rounded-md overflow-hidden max-h-48 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">Company</th>
+                        <th className="text-left px-3 py-2 font-medium">Contact</th>
+                        <th className="text-left px-3 py-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importRows.slice(0, 10).map((r, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-3 py-1.5">{r.company_name}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.primary_contact_name}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.status ?? "lead"}</td>
+                        </tr>
+                      ))}
+                      {importRows.length > 10 && (
+                        <tr className="border-t border-border">
+                          <td colSpan={3} className="px-3 py-1.5 text-muted-foreground italic">…and {importRows.length - 10} more</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setShowImportDialog(false); setImportRows([]); setImportErrors([]); }}>Cancel</Button>
+            <Button onClick={handleImportSubmit} disabled={importRows.length === 0 || importing}>
+              {importing ? "Importing…" : `Import ${importRows.length} ${importRows.length === 1 ? "Company" : "Companies"}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── KANBAN VIEW ── */}
       {viewMode === "kanban" && (

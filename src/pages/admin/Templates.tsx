@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Plus, MoreHorizontal, Edit, Trash2, Copy, ChevronDown, ChevronRight,
-  GripVertical, ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare, X,
+  GripVertical, ClipboardList, Upload, FileCheck, Eye, Calendar, CheckSquare, X, Download, FileJson,
 } from "lucide-react";
+import { exportTemplateJSON, parseTemplateJSON, type ParsedTemplate } from "@/lib/bulkOps";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -229,6 +230,13 @@ const AdminTemplates: React.FC = () => {
   const [templates, setTemplates] = useState<PackageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+
+  // ── Import state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [parsedImport, setParsedImport] = useState<ParsedTemplate | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = React.useRef<HTMLInputElement>(null);
   
   // Dialog states
   const [showDialog, setShowDialog] = useState(false);
@@ -465,6 +473,83 @@ const AdminTemplates: React.FC = () => {
 
   // ── Edge Function helper — delegates to shared utility ──
   const adminAction = (payload: Record<string, unknown>) => edgeFetch("create-user", payload);
+
+  // ── Template JSON export ──
+  const handleExportTemplate = (template: PackageTemplate) => {
+    exportTemplateJSON(template as unknown as Record<string, unknown>);
+  };
+
+  // ── Template JSON import ──
+  const handleImportFile = async (file: File) => {
+    setImportError(null);
+    setParsedImport(null);
+    const text = await file.text();
+    const { template, error: err } = parseTemplateJSON(text);
+    if (err) { setImportError(err); return; }
+    setParsedImport(template);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!parsedImport) return;
+    setImporting(true);
+    try {
+      const { data: newTpl, error: tplErr } = await supabase
+        .from("package_templates")
+        .insert({ name: parsedImport.name, description: parsedImport.description })
+        .select("id").single();
+      if (tplErr) throw tplErr;
+
+      for (const [pi, ph] of parsedImport.phases.entries()) {
+        const { data: newPh, error: phErr } = await supabase
+          .from("template_phases")
+          .insert({
+            template_id: newTpl.id, name: ph.name,
+            description: ph.description ?? null,
+            estimated_timeline: ph.estimatedTimeline ?? null,
+            sort_order: pi + 1,
+          }).select("id").single();
+        if (phErr) throw phErr;
+
+        for (const [ti, tk] of ph.tasks.entries()) {
+          const { data: newTk, error: tkErr } = await supabase
+            .from("template_tasks")
+            .insert({
+              template_phase_id: newPh.id, title: tk.title,
+              task_type: tk.taskType, notes: tk.notes ?? null,
+              visible_to_client: tk.visibleToClient, required: tk.required ?? true,
+              sort_order: ti + 1,
+            }).select("id").single();
+          if (tkErr) throw tkErr;
+
+          if (tk.subtasks.length > 0) {
+            await supabase.from("template_task_subtasks").insert(
+              tk.subtasks.map((st, si) => ({
+                template_task_id: newTk.id, title: st.title,
+                visible_to_client: st.visibleToClient, sort_order: si,
+              }))
+            );
+          }
+        }
+
+        for (const [di, dv] of ph.deliverables.entries()) {
+          await supabase.from("template_deliverables").insert({
+            template_phase_id: newPh.id, title: dv.title,
+            description: dv.description ?? null,
+            visible_to_client: dv.visibleToClient, sort_order: di + 1,
+          });
+        }
+      }
+
+      toast({ title: "Template Imported", description: `"${parsedImport.name}" was created successfully.` });
+      setShowImportDialog(false);
+      setParsedImport(null);
+      loadTemplates();
+    } catch (err: any) {
+      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const deletePhase = async (id: string) => {
     if (!confirm("Delete phase? All associated tasks and deliverables will also be deleted.")) return;
@@ -710,9 +795,14 @@ const AdminTemplates: React.FC = () => {
           <p className="text-sm text-muted-foreground mt-1">Create and manage reusable package templates.</p>
         </div>
         {isAdmin && (
-          <Button className="gap-2" onClick={openAdd}>
-            <Plus className="h-4 w-4" /> New Template
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => { setParsedImport(null); setImportError(null); setShowImportDialog(true); }}>
+              <Upload className="h-4 w-4" /> Import Template
+            </Button>
+            <Button className="gap-2" onClick={openAdd}>
+              <Plus className="h-4 w-4" /> New Template
+            </Button>
+          </div>
         )}
       </div>
 
@@ -782,6 +872,9 @@ const AdminTemplates: React.FC = () => {
                     </div>
                     {isAdmin && (
                       <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Export as JSON" onClick={() => handleExportTemplate(template)}>
+                          <Download className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(template)}>
                           <Copy className="h-4 w-4" />
                         </Button>
@@ -989,6 +1082,57 @@ const AdminTemplates: React.FC = () => {
         </SheetContent>
       </Sheet>
 
+      {/* ── TEMPLATE IMPORT DIALOG ── */}
+      {showImportDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileJson className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Import Template from JSON</h2>
+              </div>
+              <button onClick={() => setShowImportDialog(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Upload a <code className="bg-muted px-1 rounded">.template.json</code> file exported from this page.
+              A new template will be created — nothing existing will be overwritten.
+            </p>
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => importFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
+            >
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">Drop a JSON file here or click to browse</p>
+              <input ref={importFileRef} type="file" accept=".json,application/json" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+            </div>
+            {importError && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{importError}</p>
+            )}
+            {parsedImport && (
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                <p className="font-medium">{parsedImport.name}</p>
+                {parsedImport.description && <p className="text-xs text-muted-foreground">{parsedImport.description}</p>}
+                <p className="text-xs text-muted-foreground">
+                  {parsedImport.phases.length} phase{parsedImport.phases.length !== 1 ? "s" : ""} &middot;{" "}
+                  {parsedImport.phases.reduce((s, ph) => s + ph.tasks.length, 0)} tasks &middot;{" "}
+                  {parsedImport.phases.reduce((s, ph) => s + ph.deliverables.length, 0)} deliverables
+                </p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setShowImportDialog(false)}>Cancel</Button>
+              <Button onClick={handleImportSubmit} disabled={!parsedImport || importing}>
+                {importing ? "Importing…" : "Import Template"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
