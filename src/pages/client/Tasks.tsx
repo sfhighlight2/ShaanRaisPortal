@@ -20,6 +20,7 @@ const taskTypeIcons: Record<string, React.ElementType> = {
   review: Eye,
   scheduling: Calendar,
   checklist: CheckSquare,
+  general: ClipboardList,
 };
 
 const taskTypeLabels: Record<string, string> = {
@@ -29,6 +30,7 @@ const taskTypeLabels: Record<string, string> = {
   review: "Review",
   scheduling: "Schedule",
   checklist: "Checklist",
+  general: "General",
 };
 
 const ClientTasks: React.FC = () => {

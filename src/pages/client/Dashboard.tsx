@@ -27,6 +27,7 @@ const taskTypeIcons: Record<TaskType, React.ElementType> = {
   review: Eye,
   scheduling: Calendar,
   checklist: CheckCircle,
+  general: ClipboardList,
 };
 
 const phaseStatusStyles: Record<PhaseStatus, string> = {
@@ -160,7 +161,7 @@ const ClientDashboard: React.FC = () => {
             <CardContent className="p-6 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  {React.createElement(taskTypeIcons[nextTask.taskType], { className: "h-5 w-5 text-primary" })}
+                  {React.createElement(taskTypeIcons[nextTask.taskType] || ClipboardList, { className: "h-5 w-5 text-primary" })}
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Your Next Step</p>
@@ -238,7 +239,7 @@ const ClientDashboard: React.FC = () => {
               <p className="text-sm text-muted-foreground">No pending tasks right now.</p>
             ) : (
               pendingTasks.map((task) => {
-                const Icon = taskTypeIcons[task.taskType];
+                const Icon = taskTypeIcons[task.taskType] || ClipboardList;
                 return (
                   <div
                     key={task.id}
