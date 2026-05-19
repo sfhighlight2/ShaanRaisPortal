@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown, StickyNote } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, Lock, Calendar, Upload, FileCheck, ClipboardList, Eye, Mail, ChevronDown, StickyNote, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,16 @@ const ClientDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Waiting on Client Banner */}
+      {client.status === "waiting_on_client" && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-300 bg-red-50 px-5 py-4 dark:border-red-500/40 dark:bg-red-950/40 animate-fade-in">
+          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">
+            We are waiting on you to proceed. Please complete any outstanding tasks or reach out to your Business Consultant if you need assistance.
+          </p>
+        </div>
+      )}
+
       {/* Hero Status Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Package */}
