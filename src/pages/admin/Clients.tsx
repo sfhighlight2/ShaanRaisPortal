@@ -29,7 +29,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { edgeFetch } from "@/lib/edgeFetch";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { ClientStatus } from "@/lib/types";
@@ -451,6 +451,82 @@ const AdminClients: React.FC = () => {
     toast({ title: "Archived", description: `${selectedIds.size} companies archived.` });
   };
 
+  // ── Reset (wipe & recreate) template for a single client ────────────────────
+  const resetTemplateForClient = async (clientId: string, templateId: string) => {
+    // 1. Fetch the full template tree
+    const { data: tpl } = await supabase
+      .from("package_templates")
+      .select(`*, phases:template_phases(*, tasks:template_tasks(*, subtasks:template_task_subtasks(*)), deliverables:template_deliverables(*))`)
+      .eq("id", templateId)
+      .single();
+    if (!tpl) throw new Error("Template not found");
+
+    // 2. Get (or create) the main project for the client
+    let { data: proj } = await supabase.from("projects").select("id").eq("client_id", clientId).eq("is_main_project", true).maybeSingle();
+    if (!proj) {
+      const { data: newProj, error: projErr } = await supabase.from("projects").insert({
+        client_id: clientId,
+        project_name: (tpl as any).name ?? "Main Project",
+        is_main_project: true,
+        status: "active",
+        package_template_id: templateId,
+      }).select("id").single();
+      if (projErr || !newProj) throw new Error("Could not create project");
+      proj = newProj;
+    }
+
+    // 3. Wipe existing phases (cascades tasks, subtasks, deliverables via FK)
+    const { data: existingPhases } = await supabase.from("phases").select("id").eq("project_id", proj.id);
+    if (existingPhases && existingPhases.length > 0) {
+      const phaseIds = existingPhases.map((p: any) => p.id);
+      // Delete subtasks → tasks → deliverables → phases
+      await supabase.from("task_subtasks").delete().in("task_id",
+        (await supabase.from("tasks").select("id").in("phase_id", phaseIds)).data?.map((t: any) => t.id) ?? []
+      );
+      await supabase.from("tasks").delete().in("phase_id", phaseIds);
+      await supabase.from("deliverables").delete().in("phase_id", phaseIds);
+      await supabase.from("phases").delete().in("id", phaseIds);
+    }
+
+    // 4. Rebuild from the template
+    const tplPhases: any[] = ((tpl as any).phases ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+    for (const [idx, ph] of tplPhases.entries()) {
+      const { data: newPh } = await supabase.from("phases").insert({
+        project_id: proj.id, name: ph.name, description: ph.description ?? null,
+        estimated_timeline: ph.estimated_timeline ?? null,
+        status: idx === 0 ? "current" : "upcoming",
+        sort_order: idx + 1,
+      }).select("id").single();
+      if (!newPh) continue;
+
+      const tasks: any[] = (ph.tasks ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      for (const [ti, tk] of tasks.entries()) {
+        const { data: newTk } = await supabase.from("tasks").insert({
+          phase_id: newPh.id, title: tk.title, description: tk.description ?? null,
+          task_type: tk.task_type ?? "checklist", status: "pending",
+          visible_to_client: tk.visible_to_client ?? true, sort_order: ti + 1,
+        }).select("id").single();
+        if (newTk && tk.subtasks?.length > 0) {
+          await supabase.from("task_subtasks").insert(
+            tk.subtasks.map((st: any, si: number) => ({
+              task_id: newTk.id, title: st.title, completed: false, sort_order: si + 1,
+            }))
+          );
+        }
+      }
+      const delivs: any[] = (ph.deliverables ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      for (const [di, dv] of delivs.entries()) {
+        await supabase.from("deliverables").insert({
+          phase_id: newPh.id, title: dv.title, description: dv.description ?? null,
+          visible_to_client: dv.visible_to_client ?? true, status: "pending", sort_order: di + 1,
+        });
+      }
+    }
+
+    // 5. Update client record to reference this template
+    await supabase.from("clients").update({ package_template_id: templateId }).eq("id", clientId);
+  };
+
   // ── Append template to a single client (no wipe) ───────────────────────────
   const appendTemplateToClient = async (clientId: string, templateId: string) => {
     const { data: tpl } = await supabase
@@ -486,7 +562,7 @@ const AdminClients: React.FC = () => {
           visible_to_client: tk.visible_to_client ?? true, sort_order: ti + 1,
         }).select("id").single();
         if (newTk && tk.subtasks?.length > 0) {
-          await supabase.from("subtasks").insert(
+          await supabase.from("task_subtasks").insert(
             tk.subtasks.map((st: any, si: number) => ({
               task_id: newTk.id, title: st.title, completed: false, sort_order: si + 1,
             }))
@@ -512,17 +588,21 @@ const AdminClients: React.FC = () => {
     for (const clientId of selectedIds) {
       try {
         if (bulkTemplateMode === "reset") {
-          await edgeFetch("assign-package", { client_id: clientId, package_template_id: bulkTemplateId });
+          await resetTemplateForClient(clientId, bulkTemplateId);
         } else {
           await appendTemplateToClient(clientId, bulkTemplateId);
         }
         ok++;
-      } catch { fail++; }
+      } catch (err) {
+        console.error(`Bulk template failed for client ${clientId}:`, err);
+        fail++;
+      }
     }
     setBulkProcessing(false);
     setShowBulkTemplateDialog(false);
     setBulkTemplateId("");
     clearSelection();
+    loadClients();
     toast({
       title: bulkTemplateMode === "reset" ? "Templates Reset" : "Phases Appended",
       description: `${ok} succeeded${fail ? `, ${fail} failed` : ""}.`,
@@ -611,7 +691,7 @@ const AdminClients: React.FC = () => {
 
       if (packageTemplateId && newClient?.id) {
         try {
-          await edgeFetch("assign-package", { client_id: newClient.id, package_template_id: packageTemplateId });
+          await resetTemplateForClient(newClient.id, packageTemplateId);
           toast({ title: "Client Created", description: "Package template has been assigned." });
         } catch (pkgErr: any) {
           console.error("Failed to assign package details:", pkgErr);
@@ -659,7 +739,7 @@ const AdminClients: React.FC = () => {
 
       if (packageTemplateId && packageTemplateId !== (editClient as any).package_template_id) {
         try {
-          await edgeFetch("assign-package", { client_id: editClient.id, package_template_id: packageTemplateId });
+          await resetTemplateForClient(editClient.id, packageTemplateId);
           toast({ title: "Package Assigned", description: "Template tasks have been fully applied." });
         } catch (pkgErr: any) {
           console.error("Failed to assign package details:", pkgErr);
