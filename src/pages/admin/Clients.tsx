@@ -524,7 +524,7 @@ const AdminClients: React.FC = () => {
         if (newTk && tk.subtasks?.length > 0) {
           await supabase.from("task_subtasks").insert(
             tk.subtasks.map((st: any, si: number) => ({
-              task_id: newTk.id, title: st.title, completed: false, sort_order: si + 1,
+              task_id: newTk.id, title: st.title, is_completed: false,
             }))
           );
         }
@@ -533,7 +533,7 @@ const AdminClients: React.FC = () => {
       for (const [di, dv] of delivs.entries()) {
         await supabase.from("deliverables").insert({
           phase_id: newPh.id, title: dv.title, description: dv.description ?? null,
-          visible_to_client: dv.visible_to_client ?? true, status: "pending", sort_order: di + 1,
+          visible_to_client: dv.visible_to_client ?? true, status: "pending",
         });
       }
     }
@@ -579,7 +579,7 @@ const AdminClients: React.FC = () => {
         if (newTk && tk.subtasks?.length > 0) {
           await supabase.from("task_subtasks").insert(
             tk.subtasks.map((st: any, si: number) => ({
-              task_id: newTk.id, title: st.title, completed: false, sort_order: si + 1,
+              task_id: newTk.id, title: st.title, is_completed: false,
             }))
           );
         }
@@ -588,7 +588,7 @@ const AdminClients: React.FC = () => {
       for (const [di, dv] of delivs.entries()) {
         await supabase.from("deliverables").insert({
           phase_id: newPh.id, title: dv.title, description: dv.description ?? null,
-          visible_to_client: dv.visible_to_client ?? true, status: "pending", sort_order: di + 1,
+          visible_to_client: dv.visible_to_client ?? true, status: "pending",
         });
       }
     }
