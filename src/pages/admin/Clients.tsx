@@ -4,6 +4,7 @@ import { Search, MoreHorizontal, Plus, Eye, Trash2, LayoutGrid, List, Download, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { exportCompaniesCSV, parseCompaniesCSV, parseTasksCSV, exportTasksCSV, type ParsedCompanyRow, type ParsedTaskRow } from "@/lib/bulkOps";
+import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -230,6 +231,7 @@ const AdminClients: React.FC = () => {
   const [bulkTemplateId, setBulkTemplateId] = useState<string>("");
   const [bulkTemplateMode, setBulkTemplateMode] = useState<"reset" | "append">("reset");
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, currentName: "" });
 
   // ── Import state ───────────────────────────────────────────────────────────
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -454,11 +456,12 @@ const AdminClients: React.FC = () => {
   // ── Reset (wipe & recreate) template for a single client ────────────────────
   const resetTemplateForClient = async (clientId: string, templateId: string) => {
     // 1. Fetch the full template tree
-    const { data: tpl } = await supabase
+    const { data: tpl, error: tplErr } = await supabase
       .from("package_templates")
       .select(`*, phases:template_phases(*, tasks:template_tasks(*, subtasks:template_task_subtasks(*)), deliverables:template_deliverables(*))`)
       .eq("id", templateId)
       .single();
+    if (tplErr) throw new Error(`Template fetch failed: ${tplErr.message}`);
     if (!tpl) throw new Error("Template not found");
 
     // 2. Get (or create) the main project for the client
@@ -471,32 +474,44 @@ const AdminClients: React.FC = () => {
         status: "active",
         package_template_id: templateId,
       }).select("id").single();
-      if (projErr || !newProj) throw new Error("Could not create project");
+      if (projErr || !newProj) throw new Error(`Could not create project: ${projErr?.message}`);
       proj = newProj;
     }
 
-    // 3. Wipe existing phases (cascades tasks, subtasks, deliverables via FK)
+    // 3. Wipe existing phases → tasks → subtasks → deliverables
     const { data: existingPhases } = await supabase.from("phases").select("id").eq("project_id", proj.id);
     if (existingPhases && existingPhases.length > 0) {
       const phaseIds = existingPhases.map((p: any) => p.id);
-      // Delete subtasks → tasks → deliverables → phases
-      await supabase.from("task_subtasks").delete().in("task_id",
-        (await supabase.from("tasks").select("id").in("phase_id", phaseIds)).data?.map((t: any) => t.id) ?? []
-      );
-      await supabase.from("tasks").delete().in("phase_id", phaseIds);
-      await supabase.from("deliverables").delete().in("phase_id", phaseIds);
-      await supabase.from("phases").delete().in("id", phaseIds);
+
+      // Get task IDs first, then delete subtasks only if there are tasks
+      const { data: existingTasks } = await supabase.from("tasks").select("id").in("phase_id", phaseIds);
+      const taskIds = (existingTasks ?? []).map((t: any) => t.id);
+
+      if (taskIds.length > 0) {
+        const { error: stErr } = await supabase.from("task_subtasks").delete().in("task_id", taskIds);
+        if (stErr) console.warn("Subtask delete warning:", stErr.message);
+      }
+
+      const { error: tkErr } = await supabase.from("tasks").delete().in("phase_id", phaseIds);
+      if (tkErr) console.warn("Task delete warning:", tkErr.message);
+
+      const { error: dlErr } = await supabase.from("deliverables").delete().in("phase_id", phaseIds);
+      if (dlErr) console.warn("Deliverable delete warning:", dlErr.message);
+
+      const { error: phErr } = await supabase.from("phases").delete().in("id", phaseIds);
+      if (phErr) throw new Error(`Phase delete failed: ${phErr.message}`);
     }
 
     // 4. Rebuild from the template
     const tplPhases: any[] = ((tpl as any).phases ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
     for (const [idx, ph] of tplPhases.entries()) {
-      const { data: newPh } = await supabase.from("phases").insert({
+      const { data: newPh, error: phInsErr } = await supabase.from("phases").insert({
         project_id: proj.id, name: ph.name, description: ph.description ?? null,
         estimated_timeline: ph.estimated_timeline ?? null,
         status: idx === 0 ? "current" : "upcoming",
         sort_order: idx + 1,
       }).select("id").single();
+      if (phInsErr) { console.error("Phase insert error:", phInsErr.message); continue; }
       if (!newPh) continue;
 
       const tasks: any[] = (ph.tasks ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
@@ -584,8 +599,18 @@ const AdminClients: React.FC = () => {
   const handleBulkTemplate = async () => {
     if (!bulkTemplateId || selectedIds.size === 0) return;
     setBulkProcessing(true);
+    const ids = [...selectedIds];
+    const total = ids.length;
+    setBulkProgress({ done: 0, total, currentName: "" });
     let ok = 0, fail = 0;
-    for (const clientId of selectedIds) {
+
+    // Resolve client names for progress display
+    const clientNameMap = new Map(clients.map(c => [c.id, c.company_name]));
+
+    for (let i = 0; i < ids.length; i++) {
+      const clientId = ids[i];
+      const clientName = clientNameMap.get(clientId) ?? `Client ${i + 1}`;
+      setBulkProgress({ done: i, total, currentName: clientName });
       try {
         if (bulkTemplateMode === "reset") {
           await resetTemplateForClient(clientId, bulkTemplateId);
@@ -594,10 +619,11 @@ const AdminClients: React.FC = () => {
         }
         ok++;
       } catch (err) {
-        console.error(`Bulk template failed for client ${clientId}:`, err);
+        console.error(`Bulk template failed for "${clientName}" (${clientId}):`, err);
         fail++;
       }
     }
+    setBulkProgress({ done: total, total, currentName: "" });
     setBulkProcessing(false);
     setShowBulkTemplateDialog(false);
     setBulkTemplateId("");
@@ -1043,8 +1069,18 @@ const AdminClients: React.FC = () => {
               </RadioGroup>
             </div>
           </div>
+          {/* Progress bar — visible during processing */}
+          {bulkProcessing && (
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Processing: <span className="font-medium text-foreground">{bulkProgress.currentName || "…"}</span></span>
+                <span>{bulkProgress.done} / {bulkProgress.total}</span>
+              </div>
+              <Progress value={bulkProgress.total > 0 ? (bulkProgress.done / bulkProgress.total) * 100 : 0} className="h-2" />
+            </div>
+          )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowBulkTemplateDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowBulkTemplateDialog(false)} disabled={bulkProcessing}>Cancel</Button>
             <Button
               onClick={handleBulkTemplate}
               disabled={!bulkTemplateId || bulkProcessing}
